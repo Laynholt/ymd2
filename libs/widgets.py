@@ -362,6 +362,16 @@ class ScrollingTreeView(Widget):
             parents.remove('')
         return [self._tree_view.item(parent, option='text') for parent in parents]
 
+    def tv_get_size(self, is_hierarchical_structure=False):
+        if not is_hierarchical_structure:
+            return len(self._tree_view.get_children(""))
+
+        children_size = 0
+        parents = self._tree_view.get_children("")
+        for parent in parents:
+            children_size += len(self._tree_view.get_children(parent))
+        return children_size
+
 
 class DownloadWidget(Widget):
     def __init__(self, master, playlist_name: str = "", action_type: str = 'adb', progressbar_size: int = 100):

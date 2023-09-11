@@ -858,6 +858,9 @@ class YandexMusicDownloader:
                     _tree_view_tab1.tv_insert(parent='', index='end', iid=count, text='', values=item)
                     count += 1
 
+                if not _notebook.index(_notebook.select()):
+                    _label_overlap_tracks.config(text=f'[{count}]')
+
             except tk.TclError:
                 pass
 
@@ -896,6 +899,7 @@ class YandexMusicDownloader:
 
                 # Заполняем TreeView2
                 count = 0
+                parent_count = 0
                 parent = ''
                 for playlist_value in tree_view2_data:
                     if playlist_value[0]:
@@ -904,10 +908,13 @@ class YandexMusicDownloader:
                                               values=playlist_value[1:])
                     if playlist_value[0]:
                         parent = count
+                        parent_count += 1
                     count += 1
 
                 _tree_view_tab2.tv_open()
 
+                if _notebook.index(_notebook.select()):
+                    _label_overlap_tracks.config(text=f'[{count - parent_count}]')
             except tk.TclError:
                 pass
 
@@ -1079,11 +1086,8 @@ class YandexMusicDownloader:
                 _load_playlist_data_to_tree_view2()
 
         def _entry_was_changed(*args):
-            notebook_index = _notebook.index(_notebook.select())
-            if not notebook_index:
-                _load_playlist_data_to_tree_view1()
-            else:
-                _load_playlist_data_to_tree_view2()
+            _load_playlist_data_to_tree_view1()
+            _load_playlist_data_to_tree_view2()
 
         def _combo_playlists_was_updated(value):
             _load_playlist_data_to_tree_view1()
@@ -1184,6 +1188,12 @@ class YandexMusicDownloader:
             self._window_main.event_generate(f'<<{self.Events.CHECK_BASKET_QUEUE}>>')
             self._window_child_extend_downloading.protocol("WM_DELETE_WINDOW", _prepare_to_close)
 
+        def _notebook_changed_index(*args):
+            if not _notebook.index(_notebook.select()):
+                _label_overlap_tracks.config(text=f'[{_tree_view_tab1.tv_get_size()}]')
+            else:
+                _label_overlap_tracks.config(text=f'[{_tree_view_tab2.tv_get_size(True)}]')
+
         _thread_event = tk.BooleanVar(value=False)
         _thread_event.trace_add('write', _load_playlist_data_to_tree_view1)
 
@@ -1249,8 +1259,12 @@ class YandexMusicDownloader:
         _entry_search_track = ttk.Entry(_frame_search, width=40, textvariable=_entry_string_variable)
         _entry_search_track.grid(column=1, row=0, columnspan=2, sticky=tk.EW, padx=10, pady=10)
 
+        _label_overlap_tracks = ttk.Label(_frame_search, text='')
+        _label_overlap_tracks.grid(column=3, row=0, sticky=tk.E, padx=10, pady=10)
+
         _notebook = ttk.Notebook(_frame_playlist)
         _notebook.pack(expand=1, fill=tk.BOTH, padx=5, pady=5)
+        _notebook.bind('<<NotebookTabChanged>>', _notebook_changed_index)
 
         _frame_notebook_tab1 = ttk.Frame(_notebook)
         _notebook.add(_frame_notebook_tab1, text='Список всех композиций')
