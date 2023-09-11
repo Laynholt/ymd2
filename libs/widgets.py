@@ -369,7 +369,8 @@ class DownloadWidget(Widget):
         self._action_types = {
             'd': "скачивания",
             'u': "обновления метаданных треков",
-            'adb': "добавления треков в базу данных"
+            'adb': "добавления треков в базу данных",
+            'uf': "обновления тега любимых треков в БД"
         }
         self._action_type = self._action_types[action_type]
 

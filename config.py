@@ -34,20 +34,27 @@ class Color:
 
 
 class Actions:
-    actions_list = ['d', 'u', 'adb']
-    actions_list_text_short = ["Скачать", "Обновить", "Добавить в БД"]
-    actions_list_text = ["Скачать", "Обновить метаданные", "Добавить в БД без скачивания"]
+    actions_list = ['d', 'u', 'adb', 'uf']
+    actions_list_text_short = ["Скачать", "Обновить", "Добавить в БД", "Обновить"]
+    actions_list_text = [
+        "Скачать",
+        "Обновить метаданные",
+        "Добавить в БД без скачивания",
+        "Обновить тег любимых в БД для плейлиста"
+    ]
 
     actions_dict = {
         0: 'd',
         1: 'u',
-        2: 'adb'
+        2: 'adb',
+        3: 'uf'
     }
 
     actions_dict_text = {
         actions_list[0]: "Скачать",
         actions_list[1]: "Обновить метаданные",
-        actions_list[2]: "Добавить в БД без скачивания"
+        actions_list[2]: "Добавить в БД без скачивания",
+        actions_list[3]: "Обновить тег любимых в БД для плейлиста",
     }
 
     check_actions = {'id': 'cb_id', 'hist': 'cb_history_db', 'rw': 'rewritable'}
@@ -76,6 +83,6 @@ paths = {
     }
 }
 
-__version__ = '2.1'
+__version__ = '2.2'
 __data__ = '03/2023'
-__github__ = 'https://github.com/Laynholt/ymd'
+__github__ = 'https://github.com/Laynholt/ymd2'

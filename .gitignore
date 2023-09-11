@@ -1,7 +1,7 @@
 *.ini
 *.log
 *.db
-test.py
+
 .idea/
 playlists_covers/
 download/

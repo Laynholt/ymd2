@@ -768,6 +768,9 @@ class YandexMusicDownloader:
             self._change_current_playlist_cover()
 
     def _simple_downloading(self):
+        if self._combo_playlists.current() == -1:
+            return
+
         # Формируем датафрейм для дальнейшей отправки его в загрузчик
 
         data_frame = {'d': {}, config.Actions.check_actions['id']: False,
@@ -1119,6 +1122,10 @@ class YandexMusicDownloader:
             self._window_child_extend_downloading.protocol("WM_DELETE_WINDOW", _dont_close)
 
             _thread_prepare.start()
+            if not partial_mode:
+                messagebox.showinfo('Инфо',
+                                    'Подождите, идет формирование дейтограммы для плейлистов.\nЗагрузка скоро начнется.',
+                                    parent=self._window_child_extend_downloading)
 
         def _preparing_to_partial_download():
             action_type = config.Actions.actions_dict[_combobox_action_type.current()]
@@ -1175,8 +1182,6 @@ class YandexMusicDownloader:
             self._wrapper.basket_queue.put(data_frame)
             self._window_main.event_generate(f'<<{self.Events.CHECK_BASKET_QUEUE}>>')
             self._window_child_extend_downloading.protocol("WM_DELETE_WINDOW", _prepare_to_close)
-            messagebox.showinfo('Инфо', 'Подождите, идет формирование дейтограммы для плейлистов.\nЗагрузка скоро начнется.',
-                                parent=self._window_child_extend_downloading)
 
         _thread_event = tk.BooleanVar(value=False)
         _thread_event.trace_add('write', _load_playlist_data_to_tree_view1)
@@ -1595,8 +1600,6 @@ class YandexMusicDownloader:
             logger.debug(f'Начинаю распаршивать датафрейм.')
 
             data_frame = self.basket_queue.get()
-            self.basket_queue = Queue()
-
             playlists_queue = Queue()
             action_type = None
 
@@ -1696,6 +1699,8 @@ class YandexMusicDownloader:
                 )
                 worker.setDaemon(True)
                 worker.set_history_database(self._history_database_path)
+                worker.set_favorite_tracks(self._liked_tracks)
+
                 worker.start()
                 workers.append(worker)
                 self._download_workers_threads.append(worker)
@@ -1802,6 +1807,8 @@ class YandexMusicDownloader:
                 self.download_folder_path = None
                 self.history_database_path = None
 
+                self.favorite_tracks = None
+
                 self.download_progress = None
                 self.downloaded_tracks = 0
                 self.not_downloaded_tracks = 0
@@ -1828,6 +1835,7 @@ class YandexMusicDownloader:
                                 except NetworkError:
                                     logger.error('Не удалось связаться с сервисом Яндекс Музыка!')
                                     self.not_downloaded_tracks += 1
+                                    self._increase_progress()
                                     break
                             else:
                                 self._state_working = False
@@ -1842,11 +1850,13 @@ class YandexMusicDownloader:
 
             def _do_work(self, track_data):
                 if self.action_type == 'd':
-                    return self._download(track_data)
+                    return self._download_track(track_data)
                 elif self.action_type == 'u':
-                    return self._update(track_data)
+                    return self._update_track_metadata(track_data)
                 elif self.action_type == 'adb':
-                    return self._add_to_db(track_data)
+                    return self._add_track_to_database(track_data)
+                elif self.action_type == 'uf':
+                    return self._update_liked_track_in_database(track_data)
 
             def set_history_database(self, history_database_path):
                 self.history_database_path = history_database_path
@@ -1863,6 +1873,9 @@ class YandexMusicDownloader:
             def set_download_progress_var(self, download_progress_var):
                 self.download_progress = download_progress_var
 
+            def set_favorite_tracks(self, favorite_tracks):
+                self.favorite_tracks = favorite_tracks
+
             def close(self):
                 self._close_worker = True
 
@@ -1877,7 +1890,7 @@ class YandexMusicDownloader:
                 """
                 return self._state_working
 
-            def _download(self, track_data):
+            def _download_track(self, track_data):
                 """
                    Скачивает полученный трек, параллельно добавляя о нём всю доступную информацию в базу данных.
                    :param track_data: текущий трек
@@ -1927,9 +1940,11 @@ class YandexMusicDownloader:
                                 logger.debug(f'Трек [{track_name}] отсутствует в базе '
                                              f'[{self.history_database_path}]. Так как отключена перезапись, просто '
                                              f'добавляю его в базу и выхожу.')
-                                self._add_track_to_database(track_data=track_data,
-                                                            codec=codec,
-                                                            bit_rate=bitrate)
+                                self.__add_track_to_database(track_data=track_data,
+                                                             codec=codec,
+                                                             bit_rate=bitrate,
+                                                             is_favorite=self._is_favorite_track(track_data['id'])
+                                                             )
                                 logger.debug(
                                     f'Трек [{track_name}] был добавлен в базу данных [{self.history_database_path}].')
                             track_exists = True
@@ -1983,9 +1998,11 @@ class YandexMusicDownloader:
                             if not self._is_track_in_database(track_data):
                                 logger.debug(f'Трек [{track_name}] отсутствует в базе данных по пути '
                                              f'[{self.history_database_path}]. Добавляю в базу.')
-                                self._add_track_to_database(track_data=track_data,
-                                                            codec=codec,
-                                                            bit_rate=bitrate)
+                                self.__add_track_to_database(track_data=track_data,
+                                                             codec=codec,
+                                                             bit_rate=bitrate,
+                                                             is_favorite=self._is_favorite_track(track_data['id'])
+                                                             )
                                 logger.debug(
                                     f'Трек [{track_name}] был добавлен в базу данных [{self.history_database_path}].')
                             else:
@@ -2014,7 +2031,7 @@ class YandexMusicDownloader:
                     self.not_downloaded_tracks += 1
                 return True
 
-            def _update(self, track_data):
+            def _update_track_metadata(self, track_data):
                 """
                     Обновляет метаданные трека
                     :param track_data: текущий трек
@@ -2086,7 +2103,7 @@ class YandexMusicDownloader:
                         break
                 return True
 
-            def _add_to_db(self, track_data):
+            def _add_track_to_database(self, track_data):
                 """
                     Добавляет текущий трек в базу данных, если его там нет
                     :param track_data: текущий трек
@@ -2112,10 +2129,11 @@ class YandexMusicDownloader:
                     bitrate = info.bitrate_in_kbps
 
                     logger.debug(f'Трек [{track_name}] отсутствует в базе [{self.history_database_path}].')
-                    ret_value = self._add_track_to_database(
+                    ret_value = self.__add_track_to_database(
                         track_data=track_data,
                         codec=codec,
-                        bit_rate=bitrate
+                        bit_rate=bitrate,
+                        is_favorite=self._is_favorite_track(track_data['id'])
                     )
                     if ret_value:
                         self.downloaded_tracks += 1
@@ -2161,12 +2179,13 @@ class YandexMusicDownloader:
                     logger.error(f'Трек [{_track_name}] не удалось проверить в базе данных!')
                     return False
 
-            def _add_track_to_database(self, track_data, codec, bit_rate):
+            def __add_track_to_database(self, track_data, codec, bit_rate, is_favorite):
                 """
                 Добавляет трек в базу данных
                 :param track_data: трек
                 :param codec: кодек трека
                 :param bit_rate: битрейт трека
+                :param is_favorite: любимый ли это трек
 
                 :return: True - если все хорошо
                 """
@@ -2183,8 +2202,8 @@ class YandexMusicDownloader:
                     cursor = con.cursor()
                     request = f"INSERT INTO {_playlist_name}(" \
                               f"track_id, artist_id, album_id, track_name, artist_name, album_name, genre, track_number, " \
-                              f"disk_number, year, release_data, bit_rate, codec, is_explicit, is_popular) " \
-                              f"VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?);"
+                              f"disk_number, year, release_data, bit_rate, codec, is_favorite, is_explicit, is_popular) " \
+                              f"VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?);"
 
                     album_info = track_data['track'].albums[0]
 
@@ -2204,7 +2223,7 @@ class YandexMusicDownloader:
 
                     metadata = [track_id, artist_id, album_id, track_name, artist_name, album_name,
                                 genre, track_number, disk_number, year, release_data, bit_rate, codec,
-                                is_explicit, is_popular]
+                                is_favorite, is_explicit, is_popular]
 
                     cursor.execute(request, metadata)
                     con.commit()
@@ -2269,3 +2288,57 @@ class YandexMusicDownloader:
                     # Song lyrics
                     file.tags.add(mutag.USLT(encoding=3, text=lyrics.full_lyrics))
                 file.save()
+
+            def _is_favorite_track(self, track_id) -> bool:
+                """
+                Проверяем, находится ли трек в списке любимых
+                :param track_id: идентификатор трека
+
+                :return:
+                """
+                for track in self.favorite_tracks:
+                    if int(track_id) == int(track.id):
+                        return True
+                return False
+
+            def _update_liked_track_in_database(self, track_data):
+                """
+                Обновляет список любимых треков в базе данных
+                :param track_data: трек
+
+                :return:
+                """
+                _track_name = self._get_track_name(track_data)
+                _playlist_name = f'table_{self.playlist_title}'
+
+                _is_favorite = self._is_favorite_track(track_data['id'])
+
+                con = None
+                request = ''
+                return_value = True
+
+                try:
+                    if not self._is_track_in_database(track_data):
+                        logger.debug(f"Трека [{_track_name}] нет в базе данных!")
+                        self.not_downloaded_tracks += 1
+                        return True
+
+                    con = sqlite3.connect(self.history_database_path)
+                    cursor = con.cursor()
+                    request = f"UPDATE {_playlist_name} SET is_favorite = ? WHERE track_id == ?;"
+                    cursor.execute(request, [_is_favorite, int(track_data['id'])])
+                    con.commit()
+
+                    logger.debug(f'Трек [{_track_name}] был добавлен в любимые.')
+                    self.downloaded_tracks += 1
+                except sqlite3.Error:
+                    self.not_downloaded_tracks += 1
+                    return_value = False
+                    logger.error(f'Не удалось выполнить SQL запрос обновления. Запрос: [{request}].')
+
+                    if con is not None:
+                        con.rollback()
+                finally:
+                    if con is not None:
+                        con.close()
+                return return_value
