@@ -27,20 +27,20 @@
 ```
 
 # Основные отличия от предыдущей версии проекта
-**1. Поддрержка темной/светлой/стандартной темы.**
+**1. Поддержка темной/светлой/стандартной темы.**
 
 **2. Интуитивный интерфейс.**
 
 **3. Общее окно загрузки для всех плейлистов.**
 
+**4. Релизованы все возможности, которые были в TODO у предыдущей версии.**
 
 # Скриншоты
 - Окно конфигурации
 
-![alt text](https://github.com/Laynholt/ymd2/assets/41357381/2dd1cd0e-0dd4-4766-be7f-d882e9e94b55)
-
 ![image](https://github.com/Laynholt/ymd2/assets/41357381/a8eb3cd3-3ea7-443f-ae7a-1b26c3ae9d59)
 
+![alt text](https://github.com/Laynholt/ymd2/assets/41357381/2dd1cd0e-0dd4-4766-be7f-d882e9e94b55)
 
 - Основное окно программы
 
@@ -57,7 +57,8 @@
 
 - Окно загрузки
 
-![image](https://github.com/Laynholt/ymd2/assets/41357381/aec8233a-5975-430b-80ad-4b4ae4eaabcb)
+![image](https://github.com/Laynholt/ymd2/assets/41357381/c6d6a1e7-d112-4932-ac63-3760019be6c0)
 
-![image](https://github.com/Laynholt/ymd2/assets/41357381/56ef68cc-d469-4817-bb91-33207df8986d)
+![image](https://github.com/Laynholt/ymd2/assets/41357381/165d47d0-1da5-439d-ad82-2bc60bae2d77)
+
 
