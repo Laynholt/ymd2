@@ -744,6 +744,7 @@ class YandexMusicDownloader:
                           f"release_data TEXT," \
                           f"bit_rate INTEGER NOT NULL," \
                           f"codec TEXT NOT NULL," \
+                          f"is_favorite INTEGER NOT NULL," \
                           f"is_explicit INTEGER NOT NULL DEFAULT 0," \
                           f"is_popular INTEGER NOT NULL DEFAULT 0" \
                           f")"
