@@ -17,9 +17,10 @@ def setup_logger(logger: logging.Logger, logger_type: int) -> None:
     file_handler.setFormatter(logging.Formatter(myfromatter.logger_format))
     logger.addHandler(file_handler)
 
-    console_handler = logging.StreamHandler()
-    console_handler.setFormatter(myfromatter.CustomFormatter())
-    logger.addHandler(console_handler)
+    if not config.LOGGER_WITHOUT_CONSOLE:
+        console_handler = logging.StreamHandler()
+        console_handler.setFormatter(myfromatter.CustomFormatter())
+        logger.addHandler(console_handler)
 
 
 def strip_bad_symbols(text: str, soft_mode: bool = False) -> str:

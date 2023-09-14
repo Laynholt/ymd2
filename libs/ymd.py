@@ -24,6 +24,7 @@ from yandex_music.exceptions import YandexMusicError, UnauthorizedError, Network
 
 import config
 from libs import utils, session, widgets
+from . import __github__, __version__, __data__
 
 import logging.config
 
@@ -79,6 +80,8 @@ class YandexMusicDownloader:
         self._is_rewritable = config.IS_REWRITABLE
         self._loop = None
 
+        _is_logger_mode_debug = config.LOGGER_DEBUG_MODE
+
         # Если существует файл конфигурации, то загружаемся с него
         if os.path.exists(config_filename) and os.path.isfile(config_filename):
             try:
@@ -97,6 +100,9 @@ class YandexMusicDownloader:
                         logger.debug(f'Значение стандартной темы установлено в: [{self._style_is_default_theme}]')
                         self._style_is_dark_theme = data['dark_theme']
                         logger.debug(f'Значение темной темы установлено в: [{self._style_is_dark_theme}]')
+                        _is_logger_mode_debug = data['logger_mode_debug']
+                        logger.debug(f'Значение логгера установлено в: [{_is_logger_mode_debug}]')
+
                     except json.decoder.JSONDecodeError:
                         logger.error(f'Ошибка при разборе файла [{config_filename}]!')
                     except KeyError:
@@ -123,10 +129,10 @@ class YandexMusicDownloader:
         _menu_main = tk.Menu(_frame_window_configuration, tearoff=0)
 
         _menu_additional = tk.Menu(_menu_main, tearoff=0)
-        _is_logger_mode_debug = tk.BooleanVar(value=config.LOGGER_DEBUG_MODE)
+        _is_logger_mode_debug_var = tk.BooleanVar(value=_is_logger_mode_debug)
 
         _menu_additional.add_checkbutton(label='Логгер в режиме дебага', onvalue=1, offvalue=0,
-                                         variable=_is_logger_mode_debug)
+                                         variable=_is_logger_mode_debug_var)
 
         _menu_themes = tk.Menu(_menu_additional, tearoff=0)
 
@@ -160,7 +166,7 @@ class YandexMusicDownloader:
         _menu_button.pack()
 
         def _set_logger_level():
-            if _is_logger_mode_debug.get():
+            if _is_logger_mode_debug_var.get():
                 logger.setLevel(logging.DEBUG)
             else:
                 logger.setLevel(logging.ERROR)
@@ -225,10 +231,10 @@ class YandexMusicDownloader:
                                     anchor=tk.CENTER, justify=tk.CENTER)
             _label_info.pack(pady=10)
 
-            _label_github = ttk.Label(_frame_window_auth, text=f'{config.__github__}', foreground=config.Color.LINK_FG,
+            _label_github = ttk.Label(_frame_window_auth, text=f'{__github__}', foreground=config.Color.LINK_FG,
                                       cursor='hand2')
             _label_github.pack()
-            _label_github.bind('<Button-1>', lambda e: _callback(config.__github__))
+            _label_github.bind('<Button-1>', lambda e: _callback(__github__))
 
             _frame_login = ttk.Frame(_frame_window_auth)
             _frame_login.pack(pady=10)
@@ -366,6 +372,8 @@ class YandexMusicDownloader:
             self._is_rewritable = _check_is_rewritable.get()
 
             _set_logger_level()
+
+            nonlocal _is_logger_mode_debug_var
             try:
                 with open(config_filename, 'w', encoding='utf-8') as config_file1:
                     data1 = {
@@ -373,7 +381,8 @@ class YandexMusicDownloader:
                         'history': self._history_database_path,
                         'download': self._download_folder_path,
                         'default_theme': self._style_is_default_theme,
-                        'dark_theme': self._style_is_dark_theme
+                        'dark_theme': self._style_is_dark_theme,
+                        'logger_mode_debug': _is_logger_mode_debug_var.get()
                     }
                     json.dump(data1, config_file1)
                     logger.debug(
@@ -402,6 +411,12 @@ class YandexMusicDownloader:
         return is_continue
 
     def _load_theme_styles(self, window):
+        """
+        Загружаем текущую тему для нужного окна
+
+        :param window: нужное окно
+        :return:
+        """
         if os.path.exists(f'{self._style_theme_path}{self._style_theme_file}.tcl'):
             try:
                 window.tk.call("source", f'{self._style_theme_path}{self._style_theme_file_dark}.tcl')
@@ -424,6 +439,12 @@ class YandexMusicDownloader:
             self._style.theme_use(config.DEFAULT_THEME)
 
     def _change_theme(self, *args):
+        """
+        Меняем тему для текущего окна
+
+        :param args:
+        :return:
+        """
         if self._style_theme_dark_was_loaded and self._style_theme_light_was_loaded:
             self._style_is_dark_theme = not self._style_is_dark_theme
             self._style_theme_file = self._style_theme_file_dark if self._style_is_dark_theme else self._style_theme_file_light
@@ -432,6 +453,12 @@ class YandexMusicDownloader:
             self._theme_was_changed.set(self._style_is_dark_theme)
 
     def _set_default_theme(self, menu):
+        """
+        Устанавливаем простую тему вместо темной/белой
+
+        :param menu: вкладка меню, к которой прикреплен чекбокс (для замены значения в нем)
+        :return:
+        """
         self._style_is_default_theme = not self._style_is_default_theme
 
         if self._style_is_default_theme is True:
@@ -496,12 +523,12 @@ class YandexMusicDownloader:
             frame_window_about = ttk.Frame(about_window)
             frame_window_about.pack(expand=1, fill=tk.BOTH)
 
-            label_about = ttk.Label(frame_window_about, text=f'Версия: {config.__version__};\n'
-                                                             f'Написал laynholt в {config.__data__};\n'
+            label_about = ttk.Label(frame_window_about, text=f'Версия: {__version__};\n'
+                                                             f'Написал laynholt в {__data__};\n'
                                                              f'Репозиторий:', justify=tk.CENTER)
             label_about.pack(padx=5, pady=5)
 
-            label_git = ttk.Label(frame_window_about, text=f'{config.__github__}',
+            label_git = ttk.Label(frame_window_about, text=f'{__github__}',
                                   foreground=config.Color.LINK_FG,
                                   cursor='hand2', justify=tk.CENTER)
             label_git.pack(padx=5)
@@ -510,7 +537,7 @@ class YandexMusicDownloader:
             def _callback(url):
                 webbrowser.open_new(url)
 
-            label_git.bind('<Button-1>', lambda e: _callback(config.__github__))
+            label_git.bind('<Button-1>', lambda e: _callback(__github__))
 
         self._frame_window_main = ttk.Frame(self._window_main)
         self._frame_window_main.pack(expand=1, fill=tk.BOTH)
@@ -684,6 +711,7 @@ class YandexMusicDownloader:
     def _change_current_playlist_cover(self, *args):
         """
         Меняем отображающуюся текущую обложку плейлиста
+
         :return:
         """
         current_playlist_index = self._combo_playlists.current()
@@ -723,6 +751,7 @@ class YandexMusicDownloader:
     def _database_create_tables(self):
         """
         Создаем необходмые таблицы в базе данных, если их ещё нет
+
         :return:
         """
         with sqlite3.connect(self._history_database_path) as db:
@@ -751,6 +780,12 @@ class YandexMusicDownloader:
                 cur.execute(request)
 
     def _analyze_updated_playlist_info(self, *args):
+        """
+        Обработчик события PLAYLISTS_INFO_LOADED
+
+        :param args:
+        :return:
+        """
         # Создание необходимых таблиц в базе данных
         thread = threading.Thread(target=self._database_create_tables, daemon=True)
         thread.start()
@@ -759,6 +794,11 @@ class YandexMusicDownloader:
         self._fill_combo_values()
 
     def _fill_combo_values(self):
+        """
+        Добавляем значения в комбобокс
+
+        :return:
+        """
         if self._wrapper.wrapper_state_is_ok:
             # Заполняем комбо названиями плейлистов
             for playlist in self._wrapper.playlists:
@@ -769,6 +809,11 @@ class YandexMusicDownloader:
             self._change_current_playlist_cover()
 
     def _simple_downloading(self):
+        """
+        Загрузка текущего плейлиста в комбобоксе основного окна через кнопку скачать
+
+        :return:
+        """
         if self._combo_playlists.current() == -1:
             return
 
@@ -778,18 +823,30 @@ class YandexMusicDownloader:
                       config.Actions.check_actions['rw']: self._is_rewritable,
                       config.Actions.check_actions['hist']: self._check_state_history.get()}
 
-        playlist = self._wrapper.playlists[self._combo_playlists.current()]
-        if playlist.kind not in self._wrapper.marked_up_data:
-            # Если данных о текущем плейлисте нет, то скачиваем их
-            self._wrapper.data_markup(playlist.kind)
+        try:
+            playlist = self._wrapper.playlists[self._combo_playlists.current()]
+            if playlist.kind not in self._wrapper.marked_up_data:
+                # Если данных о текущем плейлисте нет, то скачиваем их
+                self._wrapper.data_markup(playlist.kind)
 
-        # Формируем датафрейм
-        data_frame['d'][playlist.kind] = self._wrapper.marked_up_data[playlist.kind]
+            # Формируем датафрейм
+            data_frame['d'][playlist.kind] = self._wrapper.marked_up_data[playlist.kind]
 
-        self._wrapper.basket_queue.put(data_frame)
-        self._window_main.event_generate(f'<<{self.Events.CHECK_BASKET_QUEUE}>>')
+            self._wrapper.basket_queue.put(data_frame)
+            self._window_main.event_generate(f'<<{self.Events.CHECK_BASKET_QUEUE}>>')
+
+        except (NetworkError, YandexMusicError):
+            messagebox.showerror('Ошибка', 'Не удалось связаться с сервисом Яндекс Музыка!\n\n'
+                                           'Проверьте ваше подключение к Интернету или попробуйте позже.',
+                                 parent=self._window_child_extend_downloading)
 
     def _extend_downloading(self):
+        """
+        Окно расширенной загрузки плейлистов
+
+        :return:
+        """
+
         if self._window_child_extend_downloading is not None or not self._wrapper.wrapper_state_is_ok:
             return
 
@@ -830,7 +887,8 @@ class YandexMusicDownloader:
                     return
 
                 if playlist_index not in self._wrapper.marked_up_data:
-                    _thread1 = threading.Thread(target=self._wrapper.data_markup, args=[playlist_index, _thread_event],
+                    _thread1 = threading.Thread(target=self._wrapper.data_markup,
+                                                args=[playlist_index, _thread_event, True],
                                                 daemon=True)
                     _thread1.start()
                     return
@@ -1127,10 +1185,6 @@ class YandexMusicDownloader:
             self._window_child_extend_downloading.protocol("WM_DELETE_WINDOW", _dont_close)
 
             _thread_prepare.start()
-            if not partial_mode:
-                messagebox.showinfo('Инфо',
-                                    'Подождите, идет формирование дейтограммы для плейлистов.\nЗагрузка скоро начнется.',
-                                    parent=self._window_child_extend_downloading)
 
         def _preparing_to_partial_download():
             action_type = config.Actions.actions_dict[_combobox_action_type.current()]
@@ -1169,24 +1223,35 @@ class YandexMusicDownloader:
                           config.Actions.check_actions['rw']: self._check_rewritable.get(),
                           config.Actions.check_actions['hist']: self._check_state_history.get()}
 
-            for _playlist in self._wrapper.playlists:
-                if _playlist.kind not in self._wrapper.marked_up_data:
-                    # Если данных о текущем плейлисте нет, то скачиваем их
-                    self._wrapper.data_markup(_playlist.kind)
+            try:
+                for _playlist in self._wrapper.playlists:
+                    if _playlist.kind not in self._wrapper.marked_up_data:
+                        # Если данных о текущем плейлисте нет, то скачиваем их
+                        self._wrapper.data_markup(_playlist.kind)
 
-            # Формируем датафрейм
-            for playlist_kind, playlist_data in self._wrapper.marked_up_data.items():
-                data_frame[action_type][playlist_kind] = playlist_data
+                # Формируем датафрейм
+                for playlist_kind, playlist_data in self._wrapper.marked_up_data.items():
+                    data_frame[action_type][playlist_kind] = playlist_data
 
-            # Отчищаем всё из корзины для текущего экшена
-            if action_type in basket:
-                del basket[action_type]
+                # Отчищаем всё из корзины для текущего экшена
+                if action_type in basket:
+                    del basket[action_type]
 
-            _load_playlist_data_to_tree_view2()
+                _load_playlist_data_to_tree_view2()
 
-            self._wrapper.basket_queue.put(data_frame)
-            self._window_main.event_generate(f'<<{self.Events.CHECK_BASKET_QUEUE}>>')
-            self._window_child_extend_downloading.protocol("WM_DELETE_WINDOW", _prepare_to_close)
+                self._wrapper.basket_queue.put(data_frame)
+                self._window_main.event_generate(f'<<{self.Events.CHECK_BASKET_QUEUE}>>')
+                self._window_child_extend_downloading.protocol("WM_DELETE_WINDOW", _prepare_to_close)
+
+            except (NetworkError, YandexMusicError):
+                _button_download_all['state'] = 'normal'
+                _button_download_all_allow_states[_combobox_action_type.current()] = True
+                _button_download_selected['state'] = 'normal'
+                _button_download_selected_allow_states[_combobox_action_type.current()] = True
+
+                messagebox.showerror('Ошибка', 'Не удалось связаться с сервисом Яндекс Музыка!\n\n'
+                                               'Проверьте ваше подключение к Интернету или попробуйте позже.',
+                                     parent=self._window_child_extend_downloading)
 
         def _notebook_changed_index(*args):
             if not _notebook.index(_notebook.select()):
@@ -1198,7 +1263,7 @@ class YandexMusicDownloader:
         _thread_event.trace_add('write', _load_playlist_data_to_tree_view1)
 
         _thread = threading.Thread(target=self._wrapper.data_markup,
-                                   args=[self._wrapper.playlists[0].kind, _thread_event], daemon=True)
+                                   args=[self._wrapper.playlists[0].kind, _thread_event, True], daemon=True)
         _thread.start()
 
         _frame_window_child = ttk.Frame(self._window_child_extend_downloading)
@@ -1384,6 +1449,15 @@ class YandexMusicDownloader:
         _button_download_selected.grid(row=0, column=1, padx=5, pady=5)
 
     def _create_new_download_instance(self, close_function, pause_function, number_of_playlists, action_type):
+        """
+        Создание новой вкладки в окне загрузки
+
+        :param close_function: функуия вызовется при закрытии вкладки
+        :param pause_function: функуия вызовется при нажатии кнопки остановки
+        :param number_of_playlists: количество плейлистов для текушего действия в данной вкладке
+        :param action_type: текущее действие с плейлистами в данной вкладке
+        :return:
+        """
 
         def _close_function():
             logger.debug(f'Удаляю вкладку из окна загрузки. '
@@ -1437,6 +1511,7 @@ class YandexMusicDownloader:
             widgets_variables.append(download_widget.get_variables())
 
         self._notebook_download.add(frame, text=f'{config.Actions.actions_dict_text[action_type]}')
+        self._notebook_download.select(self._notebook_download.index('end') - 1)
 
         return widgets_variables
 
@@ -1559,43 +1634,49 @@ class YandexMusicDownloader:
             """
             return self._client.users_playlists(kind=kind)
 
-        def data_markup(self, kind, event=None):
+        def data_markup(self, kind, event=None, is_running_in_thread=False):
             """
             Создаем JSON формат данных для дальнейшей работы
 
             :param kind: Номер плейлиста
             :param event: Событие завершения
+            :param is_running_in_thread: Запущено в потоке (для проброса исключения)
             :return:
             """
-            if kind not in self.marked_up_data:
-                self.playlists_are_marking_up.append(kind)
+            try:
+                if kind not in self.marked_up_data:
+                    self.playlists_are_marking_up.append(kind)
 
-                # Загружаем данные о плейлистах
-                playlist_data = self.get_playlists_data(kind)
+                    # Загружаем данные о плейлистах
+                    playlist_data = self.get_playlists_data(kind)
 
-                # Проверка, если по какой-то причине треки не пришли
-                if playlist_data.tracks:
-                    if playlist_data.tracks[0].track is None:
-                        playlist_data.tracks = playlist_data.fetch_tracks()
+                    # Проверка, если по какой-то причине треки не пришли
+                    if playlist_data.tracks:
+                        if playlist_data.tracks[0].track is None:
+                            playlist_data.tracks = playlist_data.fetch_tracks()
 
-                # Размечаем данные для каждого плейлиста
-                self.marked_up_data.update({playlist_data.kind: []})
-                for _track in playlist_data.tracks:
-                    self.marked_up_data[playlist_data.kind].append({
-                        'track': _track.track,
-                        'artists': ', '.join(artists.name for artists in _track.track.artists),
-                        'albums': ', '.join(album.title for album in _track.track.albums),
-                        'title': _track.track.title + (
-                            "" if _track.track.version is None else f' ({_track.track.version})'),
-                        'id': _track.track.id
-                    })
+                    # Размечаем данные для каждого плейлиста
+                    self.marked_up_data.update({playlist_data.kind: []})
+                    for _track in playlist_data.tracks:
+                        self.marked_up_data[playlist_data.kind].append({
+                            'track': _track.track,
+                            'artists': ', '.join(artists.name for artists in _track.track.artists),
+                            'albums': ', '.join(album.title for album in _track.track.albums),
+                            'title': _track.track.title + (
+                                "" if _track.track.version is None else f' ({_track.track.version})'),
+                            'id': _track.track.id
+                        })
 
-                    self.marked_up_data[playlist_data.kind].sort(key=itemgetter('title'))
+                        self.marked_up_data[playlist_data.kind].sort(key=itemgetter('title'))
 
-                self.playlists_are_marking_up.remove(kind)
+                    self.playlists_are_marking_up.remove(kind)
 
-            if event is not None:
-                event.set(not event.get())
+                if event is not None:
+                    event.set(not event.get())
+
+            except (NetworkError, YandexMusicError):
+                if is_running_in_thread is False:
+                    raise NetworkError
 
         def _check_queue(self, *args):
             """
@@ -1692,6 +1773,16 @@ class YandexMusicDownloader:
                 nonlocal is_finishing_downloading
                 is_finishing_downloading = True
 
+            def _network_error(*args):
+                for _worker in workers:
+                    logger.debug(f'Устанавливая флаг завершения для потока [{_worker.ident}].')
+                    _worker.close()
+                nonlocal is_finishing_downloading
+                is_finishing_downloading = True
+
+                messagebox.showerror('Ошибка', 'Не удалось связаться с сервисом Яндекс Музыка!\n\n'
+                                               'Проверьте ваше подключение к Интернету или попробуйте позже.')
+
             # Добавляем в окно загрузки
             widgets_variables = self._create_download_instance(
                 close_function=_break_download,
@@ -1701,6 +1792,8 @@ class YandexMusicDownloader:
             )
 
             mutex = threading.Lock()
+            network_is_ok = tk.BooleanVar(value=True)
+            network_is_ok.trace_add('write', _network_error)
 
             # Создаем воркеров
             workers = []
@@ -1715,6 +1808,7 @@ class YandexMusicDownloader:
                 worker.setDaemon(True)
                 worker.set_history_database(self._history_database_path)
                 worker.set_favorite_tracks(self._liked_tracks)
+                worker.set_network_event_var(network_is_ok)
 
                 worker.start()
                 workers.append(worker)
@@ -1762,9 +1856,9 @@ class YandexMusicDownloader:
                     logger.debug(f'Директория [{download_folder_path}/info] была создана.')
                     os.makedirs(f'{download_folder_path}/info', exist_ok=True)
 
-                with open(f'{download_folder_path}/info/errors.txt', 'w', encoding='utf-8') as file:
+                with open(f'{download_folder_path}/info/errors.txt', 'w', encoding='utf-8'):
                     pass
-                with open(f'{download_folder_path}/info/downloaded.txt', 'w', encoding='utf-8') as file:
+                with open(f'{download_folder_path}/info/downloaded.txt', 'w', encoding='utf-8'):
                     pass
 
                 # Меняем значения у воркеров
@@ -1832,7 +1926,14 @@ class YandexMusicDownloader:
                 self._pause_worker = False
                 self._state_working = False
 
+                self._network_is_ok = None
+
             def run(self):
+                """
+                Основной метод работы воркера
+
+                :return:
+                """
                 while not self._close_worker:
                     if self._pause_worker is False:
                         if self.tracks_queue is not None:
@@ -1847,10 +1948,15 @@ class YandexMusicDownloader:
 
                                     if self._do_work(data):
                                         self._increase_progress()
-                                except NetworkError:
+                                except (NetworkError, YandexMusicError):
                                     logger.error('Не удалось связаться с сервисом Яндекс Музыка!')
                                     self.not_downloaded_tracks += 1
                                     self._increase_progress()
+
+                                    self.mutex.acquire()
+                                    if self._network_is_ok.get() is True:
+                                        self._network_is_ok.set(False)
+                                    self.mutex.release()
                                     break
                             else:
                                 self._state_working = False
@@ -1859,11 +1965,24 @@ class YandexMusicDownloader:
                     time.sleep(0.01)
 
             def _increase_progress(self):
+                """
+                Увеличиваем значение прогрессбара для текущего плейлиста
+
+                :return:
+                """
+
                 self.mutex.acquire()
                 self.download_progress.set(self.download_progress.get() + 1)
                 self.mutex.release()
 
             def _do_work(self, track_data):
+                """
+                В зависимости от экшена выполняем то или иное действие
+
+                :param track_data: текущий трек
+                :return:
+                """
+
                 if self.action_type == 'd':
                     return self._download_track(track_data)
                 elif self.action_type == 'u':
@@ -1873,28 +1992,83 @@ class YandexMusicDownloader:
                 elif self.action_type == 'uf':
                     return self._update_liked_track_in_database(track_data)
 
+            def set_network_event_var(self, event):
+                """
+                Устанавливаем отслеживаемую переменную для получения ивента при ошибке соединения
+
+                :param event: отслеживаемая переменная для получения ивента
+                :return:
+                """
+                self._network_is_ok = event
+
             def set_history_database(self, history_database_path):
+                """
+                Устанавливаем значение пути к базе данных для текущего воркера
+
+                :param history_database_path: путь к базе данных
+                :return:
+                """
                 self.history_database_path = history_database_path
 
             def set_playlist_title(self, playlist_title):
+                """
+                Устанавливаем значение названия плейлиста для текущего воркера
+
+                :param playlist_title: название плейлиста
+                :return:
+                """
                 self.playlist_title = utils.strip_bad_symbols(playlist_title).replace(' ', '_')
 
             def set_download_folder(self, download_folder_path):
+                """
+                Устанавливаем значение пути к папке загрузки для текущего воркера
+
+                :param download_folder_path: путь к папке загрузки
+                :return:
+                """
                 self.download_folder_path = download_folder_path
 
             def set_tracks_queue(self, tracks_queue):
+                """
+                Устанавливаем значение очереди треков для текущего воркера
+
+                :param tracks_queue: очередь треков для получения нового трека
+                :return:
+                """
                 self.tracks_queue = tracks_queue
 
             def set_download_progress_var(self, download_progress_var):
+                """
+                Связываем прогрессбар текущего плейлиста с данным воркером
+
+                :param download_progress_var: отслеживаемая переменная текущего прогрессбара
+                :return:
+                """
                 self.download_progress = download_progress_var
 
             def set_favorite_tracks(self, favorite_tracks):
+                """
+                Устанавливаем значение любимых треков для текущего воркера
+
+                :param favorite_tracks: список любимых треков
+                :return:
+                """
                 self.favorite_tracks = favorite_tracks
 
             def close(self):
+                """
+                Сигнал на завершение работы для воркера
+
+                :return:
+                """
                 self._close_worker = True
 
             def pause(self):
+                """
+                Сигнал на остановку работы для воркера
+
+                :return:
+                """
                 self._pause_worker = not self._pause_worker
 
             def get_state(self):
@@ -1907,9 +2081,10 @@ class YandexMusicDownloader:
 
             def _download_track(self, track_data):
                 """
-                   Скачивает полученный трек, параллельно добавляя о нём всю доступную информацию в базу данных.
-                   :param track_data: текущий трек
-                   :return: True - если все нормально скачалось
+                Скачивает полученный трек, параллельно добавляя о нём всю доступную информацию в базу данных.
+
+                :param track_data: текущий трек
+                :return: True - если все нормально скачалось
                 """
                 if self._close_worker is True:
                     return False
@@ -2048,9 +2223,10 @@ class YandexMusicDownloader:
 
             def _update_track_metadata(self, track_data):
                 """
-                    Обновляет метаданные трека
-                    :param track_data: текущий трек
-                    :return:
+                Обновляет метаданные трека
+
+                :param track_data: текущий трек
+                :return:
                 """
                 track_name = self._get_track_name(track_data)
 
@@ -2120,9 +2296,10 @@ class YandexMusicDownloader:
 
             def _add_track_to_database(self, track_data):
                 """
-                    Добавляет текущий трек в базу данных, если его там нет
-                    :param track_data: текущий трек
-                    :return:
+                Добавляет текущий трек в базу данных, если его там нет
+
+                :param track_data: текущий трек
+                :return:
                 """
                 track_name = self._get_track_name(track_data)
 
@@ -2164,7 +2341,16 @@ class YandexMusicDownloader:
                 return True
 
             def _get_track_name(self, track_data, need_strip=True):
-                # print(track_data)
+                """
+                Получаем склеенное имя трека с отфильтрованными символами вида:
+                    Исполнитель - Композиция (id)
+                    (id) - добавится, если был выбран такой пункт при загрузке
+
+                :param track_data: текущий трек
+                :param need_strip: нужно ли выполнять фильтрацию по символам в названии (удалять недопустимые символы)
+                :return:
+                """
+
                 _id_postfix = f" ({track_data['id']})" if self.special_modes[config.Actions.check_actions['id']] else ""
                 _track_name = f"{track_data['artists']} - {track_data['title']}{_id_postfix}"
 
@@ -2175,6 +2361,7 @@ class YandexMusicDownloader:
             def _is_track_in_database(self, track_data):
                 """
                 Ищет трек в базе данных
+
                 :param track_data: трек
                 :return: True - если нашел, False - если нет.
                 """
@@ -2197,6 +2384,7 @@ class YandexMusicDownloader:
             def __add_track_to_database(self, track_data, codec, bit_rate, is_favorite):
                 """
                 Добавляет трек в базу данных
+
                 :param track_data: трек
                 :param codec: кодек трека
                 :param bit_rate: битрейт трека
@@ -2264,6 +2452,7 @@ class YandexMusicDownloader:
                                       cover_filename, track_position, disk_number, lyrics):
                 """
                 Функция для редактирования метаданных трека
+
                 :param full_track_name: путь к треку
                 :param track_title: название трека
                 :param artists: исполнители
@@ -2307,8 +2496,8 @@ class YandexMusicDownloader:
             def _is_favorite_track(self, track_id) -> bool:
                 """
                 Проверяем, находится ли трек в списке любимых
-                :param track_id: идентификатор трека
 
+                :param track_id: идентификатор трека
                 :return:
                 """
                 for track in self.favorite_tracks:
@@ -2319,8 +2508,8 @@ class YandexMusicDownloader:
             def _update_liked_track_in_database(self, track_data):
                 """
                 Обновляет список любимых треков в базе данных
-                :param track_data: трек
 
+                :param track_data: трек
                 :return:
                 """
                 _track_name = self._get_track_name(track_data)

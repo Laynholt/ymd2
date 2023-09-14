@@ -21,7 +21,8 @@ NUMBER_OF_WORKERS = 5
 # Количество треков в одном чанке обработки
 CHUNK_OF_TRACKS = 20
 # Дебаг мод в логгере
-LOGGER_DEBUG_MODE = True
+LOGGER_DEBUG_MODE = False
+LOGGER_WITHOUT_CONSOLE = False
 
 DEFAULT_THEME = 'clam'
 
@@ -83,6 +84,3 @@ paths = {
     }
 }
 
-__version__ = '2.2'
-__data__ = '03/2023'
-__github__ = 'https://github.com/Laynholt/ymd2'
