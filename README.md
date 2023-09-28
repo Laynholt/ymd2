@@ -10,6 +10,8 @@
 
 Данная программа основана на библиотеке yandex-music-api: https://github.com/MarshalX/yandex-music-api
 
+Помимо стандартной темы были использованы темы для tkinter Forest: https://github.com/rdbende/Forest-ttk-theme
+
 # Установка
 ```
   git clone https://github.com/Laynholt/ymd2.git
