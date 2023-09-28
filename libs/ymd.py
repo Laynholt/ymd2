@@ -134,7 +134,7 @@ class YandexMusicDownloader:
         except tk.TclError:
             pass
 
-        _window_configuration.title('YMD Конфигурация')
+        _window_configuration.title('YMD - Окно Конфигурации')
         _window_configuration.resizable(width=False, height=False)
 
         self._load_theme_styles(_window_configuration)
@@ -231,7 +231,7 @@ class YandexMusicDownloader:
             except tk.TclError:
                 pass
 
-            _window_auth.title('Окно авторизации')
+            _window_auth.title('YMD - Окно Авторизации')
             _window_auth.resizable(width=False, height=False)
 
             _frame_window_auth = ttk.Frame(_window_auth)
@@ -504,7 +504,7 @@ class YandexMusicDownloader:
         except tk.TclError:
             pass
 
-        self._window_main.title('YMD')
+        self._window_main.title('YMD - Главное Меню')
         self._window_main.resizable(width=False, height=False)
 
         self._load_theme_styles(self._window_main)
@@ -513,7 +513,7 @@ class YandexMusicDownloader:
         self._window_download = tk.Toplevel(self._window_main)
         self._window_download.withdraw()
         self._window_download.geometry('610x400')
-        self._window_download.title('YMD Загрузки')
+        self._window_download.title('YMD - Окно Загрузки')
         self._window_download.minsize(width=670, height=400)
         self._window_download.protocol("WM_DELETE_WINDOW", lambda: self._window_download.withdraw())
 
@@ -869,7 +869,7 @@ class YandexMusicDownloader:
         self._window_child_extend_downloading = tk.Toplevel(self._window_main)
         self._window_child_extend_downloading.geometry("950x700")
         self._window_child_extend_downloading.minsize(950, 700)
-        self._window_child_extend_downloading.title('YMD Расширенная загрузка')
+        self._window_child_extend_downloading.title('YMD - Окно Расширенной загрузки')
         try:
             self._window_child_extend_downloading.iconbitmap(config.paths["files"]["icon"])
         except tk.TclError:

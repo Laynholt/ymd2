@@ -18,8 +18,7 @@ limitations under the License.
 IS_REWRITABLE = False
 # Количество потоков, которые будут обрабатывать один плейлист при загрузке
 NUMBER_OF_WORKERS = 5
-# Количество треков в одном чанке обработки
-CHUNK_OF_TRACKS = 20
+
 # Дебаг мод в логгере
 LOGGER_DEBUG_MODE = False
 LOGGER_WITHOUT_CONSOLE = False
@@ -74,7 +73,7 @@ paths = {
         'history': f'{paths["stuff"]}/history.db',
         'default_playlist_cover': f'{paths["stuff"]}/default_playlist_cover.jpg',
         'favorite_playlist_cover': f'{paths["stuff"]}/favorite_playlist_cover.jpg',
-        'icon': f'{paths["stuff"]}/icon.ico',
+        'icon': f'{paths["stuff"]}/icon1.ico',
         'log': f'{paths["stuff"]}/logging.log',
         'config': f'{paths["stuff"]}/config.ini',
         'theme': {
