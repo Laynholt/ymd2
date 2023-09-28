@@ -64,3 +64,6 @@
 ![image](https://github.com/Laynholt/ymd2/assets/41357381/165d47d0-1da5-439d-ad82-2bc60bae2d77)
 
 
+## Лицензия
+
+Этот проект лицензирован в соответствии с [Лицензией Apache 2.0](LICENSE).
