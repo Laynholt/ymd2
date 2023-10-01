@@ -196,6 +196,8 @@ class ScrollingFrame(Widget):
         self._placeholder.grid_remove()
         if widget_type == 'dw':
             self._widgets.append(DownloadWidget(self._frame_canvas, **kwargs))
+        elif widget_type == 'di':
+            self._widgets.append(DownloadInfo(self._frame_canvas))
         elif widget_type == 'slb':
             self._widgets.append(ScrollingListbox(self._frame_canvas))
         elif widget_type == 'sf':
@@ -400,8 +402,6 @@ class DownloadWidget(Widget):
         }
         self._action_type = self._action_types[action_type]
 
-        # self._label_playlist = ttk.Label(self, text=f'{playlist_name}')
-        # self._label_playlist.pack()
         self.playlist_name = tkinter.StringVar(value=f'{playlist_name}')
         self.playlist_name.trace_add('write', self._set_playlist_name)
 
@@ -472,4 +472,67 @@ class DownloadWidget(Widget):
             pass
 
     def get_variables(self):
-        return self.value, self.value_max_size, self.playlist_name, self.successful_download_value, self.failed_download_value
+        return {
+                   'progressbar_val': self.value,
+                   'progressbar_size': self.value_max_size,
+                   'playlist_name': self.playlist_name,
+                   'successful_download': self.successful_download_value,
+                   'failed_download': self.failed_download_value
+        }
+
+
+class DownloadInfo(Widget):
+    def __init__(self, master):
+        Widget.__init__(self, master)
+
+        self.label_frame = ttk.Labelframe(self, text='Инфо')
+        self.label_frame.pack()
+
+        self.successful_download_value = tkinter.IntVar(value=0)
+        self.successful_download_value.trace_add('write', self._show_result)
+
+        self.failed_download_value = tkinter.IntVar(value=0)
+        self.failed_download_value.trace_add('write', self._show_result)
+
+        self.finish_downloading = tkinter.BooleanVar(value=False)
+        self.finish_downloading.trace_add('write', self._finish_download)
+
+        self._loading_counter = 0
+        self.label_downloading = ttk.Label(self.label_frame, text='Идёт загрузка')
+        self.label_downloading.pack()
+        self.after(1000, self._simulate_loading)
+
+        self._label_successful = ttk.Label(self.label_frame, text='Успешно выполнено для 0 композиции(-ий)')
+        self._label_successful.pack()
+
+        self._label_failed = ttk.Label(self.label_frame, text='Не получилось выполнить для 0 композиции(-ий)')
+        self._label_failed.pack()
+
+    def _show_result(self, *args):
+        try:
+            self._label_successful.config(text=f'Успешно выполнено для {self.successful_download_value.get()} композиции(-ий)')
+            self._label_failed.config(text=f'Не получилось выполнить для {self.failed_download_value.get()} композиции(-ий)')
+        except tkinter.TclError:
+            pass
+
+    def _finish_download(self, *args):
+        try:
+            self.label_downloading.config(text='Загрузка завершена.')
+        except tkinter.TclError:
+            pass
+
+    def _simulate_loading(self, *args):
+        try:
+            if self.finish_downloading.get() is False:
+                self._loading_counter = (self._loading_counter + 1) % 4
+                self.label_downloading.config(text=f'Идёт загрузка{"." * self._loading_counter}')
+                self.after(1000, self._simulate_loading)
+        except tkinter.TclError:
+            pass
+
+    def get_variables(self):
+        return {
+                   'successful_download': self.successful_download_value,
+                   'failed_download': self.failed_download_value,
+                   'end': self.finish_downloading
+        }

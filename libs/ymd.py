@@ -1520,6 +1520,10 @@ class YandexMusicDownloader:
         scrolling_frame = widgets.ScrollingFrame(frame)
         scrolling_frame.pack(expand=True, fill=tk.BOTH)
 
+        download_info_widget = scrolling_frame.add_widget(widget_type='di')
+        scrolling_frame.w_pack(download_info_widget, pady=5)
+        download_info = download_info_widget.get_variables()
+
         widgets_variables = []
         for i in range(number_of_playlists):
             download_widget = scrolling_frame.add_widget(action_type=action_type)
@@ -1529,7 +1533,7 @@ class YandexMusicDownloader:
         self._notebook_download.add(frame, text=f'{config.Actions.actions_dict_text[action_type]}')
         self._notebook_download.select(self._notebook_download.index('end') - 1)
 
-        return widgets_variables
+        return widgets_variables, download_info
 
     class Events(StrEnum):
         PLAYLISTS_INFO_LOADED = auto()
@@ -1800,7 +1804,7 @@ class YandexMusicDownloader:
                                                'Проверьте ваше подключение к Интернету или попробуйте позже.')
 
             # Добавляем в окно загрузки
-            widgets_variables = self._create_download_instance(
+            widgets_variables, download_info = self._create_download_instance(
                 close_function=_break_download,
                 pause_function=_pause_download,
                 number_of_playlists=playlists_queue.qsize(),
@@ -1831,6 +1835,9 @@ class YandexMusicDownloader:
                 self._download_workers_threads.append(worker)
 
             playlist_counter = 0
+            were_downloaded_tracks_sum = 0
+            were_not_downloaded_tracks_sum = 0
+
             while not playlists_queue.empty():
                 if self.main_window_state is False:
                     logger.debug(f'Главное окно получило команду на завершение. Выхожу.')
@@ -1842,8 +1849,8 @@ class YandexMusicDownloader:
                 playlist_title, playlist_data = playlists_queue.get()
 
                 # Меняем значения у виджетов
-                widgets_variables[playlist_counter][1].set(len(playlist_data))
-                widgets_variables[playlist_counter][2].set(playlist_title)
+                widgets_variables[playlist_counter]['progressbar_size'].set(len(playlist_data))
+                widgets_variables[playlist_counter]['playlist_name'].set(playlist_title)
 
                 time.sleep(0.1)
 
@@ -1882,7 +1889,7 @@ class YandexMusicDownloader:
                     worker.set_tracks_queue(tracks_queue)
                     worker.set_playlist_title(playlist_title)
                     worker.set_download_folder(download_folder_path)
-                    worker.set_download_progress_var(widgets_variables[playlist_counter][0])
+                    worker.set_download_progress_var(widgets_variables[playlist_counter]['progressbar_val'])
 
                 # Начинаем заполнять очередь треков
                 for playlist_track in playlist_data:
@@ -1895,6 +1902,14 @@ class YandexMusicDownloader:
                     elif is_finishing_downloading is True:
                         logger.debug(f'Поток текущей загрузки получил команду на завершение. Выхожу.')
                         return
+
+                    were_downloaded_tracks = 0
+                    were_not_downloaded_tracks = 0
+                    for worker in workers:
+                        were_downloaded_tracks += worker.downloaded_tracks
+                        were_not_downloaded_tracks += worker.not_downloaded_tracks
+                    download_info['successful_download'].set(were_downloaded_tracks + were_downloaded_tracks_sum)
+                    download_info['failed_download'].set(were_not_downloaded_tracks + were_not_downloaded_tracks_sum)
                     time.sleep(0.1)
 
                 # Закончили работать с текущим плейлистом
@@ -1908,12 +1923,18 @@ class YandexMusicDownloader:
                     were_not_downloaded_tracks += worker.not_downloaded_tracks
                     worker.downloaded_tracks = 0
                     worker.not_downloaded_tracks = 0
-                widgets_variables[playlist_counter][-2].set(were_downloaded_tracks)
-                widgets_variables[playlist_counter][-1].set(were_not_downloaded_tracks)
+
+                were_downloaded_tracks_sum += were_downloaded_tracks
+                were_not_downloaded_tracks_sum += were_not_downloaded_tracks
+                widgets_variables[playlist_counter]['successful_download'].set(were_downloaded_tracks)
+                widgets_variables[playlist_counter]['failed_download'].set(were_not_downloaded_tracks)
+                download_info['successful_download'].set(were_downloaded_tracks_sum)
+                download_info['failed_download'].set(were_not_downloaded_tracks_sum)
 
                 playlist_counter += 1
                 time.sleep(0.1)
 
+            download_info['end'].set(True)
             logger.debug(f'Действие: [{config.Actions.actions_dict_text[action_type]}].'
                          f' Работа завершена - выхожу.')
             _break_download()
