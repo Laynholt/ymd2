@@ -2204,6 +2204,12 @@ class YandexMusicDownloader:
                                 year = album_info.year if album_info is not None else 0
                                 album_artists = album_info.artists if album_info is not None else ""
 
+                                genre = "" if genre is None else genre
+                                track_number = 0 if track_number is None else track_number
+                                disk_number = 0 if disk_number is None else disk_number
+                                year = 0 if year is None else year
+                                album_artists = "" if not album_artists else ', '.join(i['name'] for i in album_artists)
+
                                 lyrics = track_data['track'].get_supplement().lyrics
                                 self._write_track_metadata(full_track_name=full_track_name,
                                                            track_title=track_data['title'],
@@ -2309,6 +2315,12 @@ class YandexMusicDownloader:
                             disk_number = album_info.track_position.volume if album_info is not None else 0
                             year = album_info.year if album_info is not None else 0
                             album_artists = album_info.artists if album_info is not None else ""
+
+                            genre = "" if genre is None else genre
+                            track_number = 0 if track_number is None else track_number
+                            disk_number = 0 if disk_number is None else disk_number
+                            year = 0 if year is None else year
+                            album_artists = "" if not album_artists else ', '.join(i['name'] for i in album_artists)
 
                             lyrics = track_data['track'].get_supplement().lyrics
                             self._write_track_metadata(full_track_name=full_track_name,
@@ -2503,32 +2515,35 @@ class YandexMusicDownloader:
                 :param lyrics: текст песни (если есть)
                 :return:
                 """
-                file = File(full_track_name)
-                with open(cover_filename, 'rb') as cover_file:
-                    file.update({
-                        # Title
-                        'TIT2': mutag.TIT2(encoding=3, text=track_title),
-                        # Artist
-                        'TPE1': mutag.TPE1(encoding=3, text=artists),
-                        # Album
-                        'TALB': mutag.TALB(encoding=3, text=albums),
-                        # Genre
-                        'TCON': mutag.TCON(encoding=3, text=genre),
-                        # Album artists
-                        'TPE2': mutag.TPE2(encoding=3, text=', '.join(i['name'] for i in album_artists)),
-                        # Year
-                        'TDRC': mutag.TDRC(encoding=3, text=str(year)),
-                        # Picture
-                        'APIC': mutag.APIC(encoding=3, text=cover_filename, data=cover_file.read()),
-                        # Track number
-                        'TRCK': mutag.TRCK(encoding=3, text=str(track_position)),
-                        # Disk number
-                        'TPOS': mutag.TPOS(encoding=3, text=str(disk_number))
-                    })
-                if lyrics is not None:
-                    # Song lyrics
-                    file.tags.add(mutag.USLT(encoding=3, text=lyrics.full_lyrics))
-                file.save()
+                try:
+                    file = File(full_track_name)
+                    with open(cover_filename, 'rb') as cover_file:
+                        file.update({
+                            # Title
+                            'TIT2': mutag.TIT2(encoding=3, text=track_title),
+                            # Artist
+                            'TPE1': mutag.TPE1(encoding=3, text=artists),
+                            # Album
+                            'TALB': mutag.TALB(encoding=3, text=albums),
+                            # Genre
+                            'TCON': mutag.TCON(encoding=3, text=genre),
+                            # Album artists
+                            'TPE2': mutag.TPE2(encoding=3, text=album_artists),
+                            # Year
+                            'TDRC': mutag.TDRC(encoding=3, text=str(year)),
+                            # Picture
+                            'APIC': mutag.APIC(encoding=3, text=cover_filename, data=cover_file.read()),
+                            # Track number
+                            'TRCK': mutag.TRCK(encoding=3, text=str(track_position)),
+                            # Disk number
+                            'TPOS': mutag.TPOS(encoding=3, text=str(disk_number))
+                        })
+                    if lyrics is not None:
+                        # Song lyrics
+                        file.tags.add(mutag.USLT(encoding=3, text=lyrics.full_lyrics))
+                    file.save()
+                except Exception as e:
+                    logger.error(f"Не удалось записать методанные для {full_track_name}.\n{e}")
 
             def _is_favorite_track(self, track_id) -> bool:
                 """
