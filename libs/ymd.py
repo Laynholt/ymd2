@@ -27,7 +27,7 @@ from enum import auto
 from strenum import StrEnum
 from operator import itemgetter
 from queue import Queue
-from PIL import Image, ImageTk
+from PIL import Image, ImageTk, ImageDraw
 
 import time
 import copy
@@ -589,7 +589,12 @@ class YandexMusicDownloader:
             self._menu_themes.entryconfig('Простая тема', state='disable')
             self._window_main.geometry('540x220')
 
+        self._menu_additional_extra = tk.Menu(self._menu_additional, tearoff=0)
+        self._menu_additional_extra.add_command(label='Обновить БД', command=lambda: self._database_modify_tables())
+
+        self._menu_additional.add_cascade(label='Экстра', menu=self._menu_additional_extra)
         self._menu_additional.add_cascade(label='Темы', menu=self._menu_themes)
+
         self._menu_main.add_cascade(label='Дополнительно', menu=self._menu_additional)
         self._menu_main.add_cascade(label='Справка', menu=self._menu_help)
 
@@ -699,7 +704,7 @@ class YandexMusicDownloader:
         # Если нет дефолного изображения альбома, то создаем его
         default_playlist_cover = config.paths['files']['default_playlist_cover']
         if not os.path.exists(default_playlist_cover):
-            default_img = Image.new('RGB', (100, 100), color=(73, 109, 137))
+            default_img = Image.new('RGB', (100, 100), color=config.Color.DEFAULT_PLAYLIST_COVER)
 
             stuff_directory = config.paths['dirs']['stuff']
             if not os.path.exists(stuff_directory) or os.path.isfile(stuff_directory):
@@ -711,7 +716,7 @@ class YandexMusicDownloader:
 
         favorite_playlist_cover = config.paths['files']['favorite_playlist_cover']
         if not os.path.exists(favorite_playlist_cover):
-            img = Image.new('RGB', (100, 100), color=(137, 109, 73))
+            img = Image.new('RGB', (100, 100), color=config.Color.FAVORITE_PLAYLIST_COVER)
             img.save(favorite_playlist_cover)
             logger.debug(
                 f'Обложка для альбому Любимое не была найдена, поэтому была создана занова и сохранена по пути '
@@ -776,7 +781,7 @@ class YandexMusicDownloader:
                 playlist_title = utils.strip_bad_symbols(playlist.title).replace(' ', '_')
                 cur = db.cursor()
                 request = f"CREATE TABLE IF NOT EXISTS table_{playlist_title}(" \
-                          f"track_id INTEGER NOT NULL," \
+                          f"track_id TEXT NOT NULL," \
                           f"artist_id TEXT NOT NULL," \
                           f"album_id TEXT," \
                           f"track_name TEXT NOT NULL," \
@@ -794,6 +799,63 @@ class YandexMusicDownloader:
                           f"is_popular INTEGER NOT NULL DEFAULT 0" \
                           f")"
                 cur.execute(request)
+
+    def _database_modify_tables(self):
+        """
+        Метод для произведения различных изменений с существующей базой данных
+
+        :return:
+        """
+
+        try:
+            with sqlite3.connect(self._history_database_path) as conn:
+                cursor = conn.cursor()
+                logger.debug(f'База данных по пути [{self._history_database_path}] была открыта.')
+            
+                # Получение списка всех таблиц в базе данных
+                cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
+                tables = cursor.fetchall()
+
+                for table in tables:
+                    table_name = table[0]
+
+                    logger.debug(f'Пытаюсь изменить таблицу {table_name}.')
+
+                    # Выполнение SQL-запроса для конвертации столбца в каждой таблице
+                    cursor.execute(f"PRAGMA foreign_keys=off;")
+                    cursor.execute(f"BEGIN TRANSACTION;")
+                    cursor.execute(f"ALTER TABLE {table_name} RENAME TO {table_name}_tmp;")
+                    cursor.execute(f"CREATE TABLE {table_name} ("\
+                                f"track_id TEXT NOT NULL," \
+                                f"artist_id TEXT NOT NULL," \
+                                f"album_id TEXT," \
+                                f"track_name TEXT NOT NULL," \
+                                f"artist_name TEXT NOT NULL," \
+                                f"album_name TEXT," \
+                                f"genre TEXT," \
+                                f"track_number INTEGER NOT NULL," \
+                                f"disk_number INTEGER NOT NULL," \
+                                f"year INTEGER," \
+                                f"release_data TEXT," \
+                                f"bit_rate INTEGER NOT NULL," \
+                                f"codec TEXT NOT NULL," \
+                                f"is_favorite INTEGER NOT NULL," \
+                                f"is_explicit INTEGER NOT NULL DEFAULT 0," \
+                                f"is_popular INTEGER NOT NULL DEFAULT 0);")
+                    cursor.execute(f'INSERT INTO {table_name} SELECT * FROM {table_name}_tmp;')
+                    cursor.execute(f"DROP TABLE {table_name}_tmp;")
+                    cursor.execute(f"COMMIT;")
+                    cursor.execute(f"PRAGMA foreign_keys=on;")
+
+                # Сохранение изменений
+                conn.commit()
+                logger.debug(f'Все изменения успешно сохранены.')
+
+                messagebox.showinfo("Инфо", "Параметры Базы данных успешно обновлены!", parent=self._window_main)
+    
+        except Exception as e:
+            logger.error(f"Произошла ошибка при попытке изменить данные БД.")
+            messagebox.showerror("Ошибка", "Не удалось обновить параметры Базы данных!", parent=self._window_main)
 
     def _analyze_updated_playlist_info(self, *args):
         """
@@ -1678,13 +1740,14 @@ class YandexMusicDownloader:
                     # Размечаем данные для каждого плейлиста
                     self.marked_up_data.update({playlist_data.kind: []})
                     for _track in playlist_data.tracks:
+
                         self.marked_up_data[playlist_data.kind].append({
                             'track': _track.track,
                             'artists': ', '.join(artists.name for artists in _track.track.artists),
                             'albums': ', '.join(album.title for album in _track.track.albums),
                             'title': _track.track.title + (
                                 "" if _track.track.version is None else f' ({_track.track.version})'),
-                            'id': _track.track.id
+                            'id': str(_track.track.id)
                         })
 
                         self.marked_up_data[playlist_data.kind].sort(key=itemgetter('title'))
@@ -2190,38 +2253,30 @@ class YandexMusicDownloader:
                                 file.write(f'{track_name}\n')
                             self.mutex.release()
 
-                            cover_filename = os.path.abspath(f'{self.download_folder_path}/covers/{track_name}.jpg')
+                            cover_filename = os.path.abspath(f'{self.download_folder_path}/covers/{track_name}.png')
                             if not os.path.exists(cover_filename):
                                 logger.debug(f'Обложка для трека [{track_name}] не найдена, начинаю загрузку.')
-                                track_data['track'].download_cover(cover_filename, size="300x300")
-                                logger.debug(f'Обложка для трека [{track_name}] была скачана в [{cover_filename}].')
+                                try:
+                                    track_data['track'].download_cover(cover_filename, size="300x300")
+                                    logger.debug(f'Обложка для трека [{track_name}] была скачана в [{cover_filename}].')
+                                except AttributeError:
+                                    logger.debug(f"Обложки для трека [{track_name}] не существует, создаю стандартную.")
+                                    self._create_cover(cover_filename)
+                                    logger.debug(f'Стандартная обложка для трека [{track_name}] была создана в [{cover_filename}].')
 
                             try:
-                                album_info = track_data['track'].albums[0]
-                                genre = album_info.genre if album_info is not None else ""
-                                track_number = album_info.track_position.index if album_info is not None else 0
-                                disk_number = album_info.track_position.volume if album_info is not None else 0
-                                year = album_info.year if album_info is not None else 0
-                                album_artists = album_info.artists if album_info is not None else ""
-
-                                genre = "" if genre is None else genre
-                                track_number = 0 if track_number is None else track_number
-                                disk_number = 0 if disk_number is None else disk_number
-                                year = 0 if year is None else year
-                                album_artists = "" if not album_artists else ', '.join(i['name'] for i in album_artists)
-
-                                lyrics = track_data['track'].get_supplement().lyrics
+                                track_metadata = self._get_track_metadata(track_data)
                                 self._write_track_metadata(full_track_name=full_track_name,
-                                                           track_title=track_data['title'],
-                                                           artists=track_data['artists'],
-                                                           albums=track_data['albums'],
-                                                           genre=genre,
-                                                           album_artists=album_artists,
-                                                           year=year,
+                                                           track_title=track_metadata['title'],
+                                                           artists=track_metadata['artists'],
+                                                           albums=track_metadata['albums'],
+                                                           genre=track_metadata['genre'],
+                                                           album_artists=track_metadata['album_artists'],
+                                                           year=track_metadata['year'],
                                                            cover_filename=cover_filename,
-                                                           track_position=track_number,
-                                                           disk_number=disk_number,
-                                                           lyrics=lyrics)
+                                                           track_position=track_metadata['track_number'],
+                                                           disk_number=track_metadata['disk_number'],
+                                                           lyrics=track_metadata['lyrics'])
                                 logger.debug(f'Метаданные трека [{track_name}] были обновлены.')
                             except AttributeError:
                                 logger.error(f'Не удалось обновить метаданные для файла [{full_track_name}].')
@@ -2303,37 +2358,29 @@ class YandexMusicDownloader:
                         logger.debug(f'Трек [{track_name}] присутствует на диске '
                                      f'[{self.download_folder_path}]. Пытаюсь обновить метаданные.')
 
-                        cover_filename = os.path.abspath(f'{self.download_folder_path}/covers/{track_name}.jpg')
+                        cover_filename = os.path.abspath(f'{self.download_folder_path}/covers/{track_name}.png')
                         if not os.path.exists(cover_filename):
                             logger.debug(f'Обложка для трека [{track_name}] не найдена, начинаю загрузку.')
-                            track_data['track'].download_cover(cover_filename, size="300x300")
-                            logger.debug(f'Обложка для трека [{track_name}] была скачана в [{cover_filename}].')
+                            try:
+                                track_data['track'].download_cover(cover_filename, size="300x300")
+                                logger.debug(f'Обложка для трека [{track_name}] была скачана в [{cover_filename}].')
+                            except AttributeError:
+                                logger.debug(f"Обложки для трека [{track_name}] не существует, создаю стандартную.")
+                                self._create_cover(cover_filename)
+                                logger.debug(f'Стандартная обложка для трека [{track_name}] была создана в [{cover_filename}].')
                         try:
-                            album_info = track_data['track'].albums[0]
-                            genre = album_info.genre if album_info is not None else ""
-                            track_number = album_info.track_position.index if album_info is not None else 0
-                            disk_number = album_info.track_position.volume if album_info is not None else 0
-                            year = album_info.year if album_info is not None else 0
-                            album_artists = album_info.artists if album_info is not None else ""
-
-                            genre = "" if genre is None else genre
-                            track_number = 0 if track_number is None else track_number
-                            disk_number = 0 if disk_number is None else disk_number
-                            year = 0 if year is None else year
-                            album_artists = "" if not album_artists else ', '.join(i['name'] for i in album_artists)
-
-                            lyrics = track_data['track'].get_supplement().lyrics
+                            track_metadata = self._get_track_metadata(track_data)
                             self._write_track_metadata(full_track_name=full_track_name,
-                                                       track_title=track_data['title'],
-                                                       artists=track_data['artists'],
-                                                       albums=track_data['albums'],
-                                                       genre=genre,
-                                                       album_artists=album_artists,
-                                                       year=year,
-                                                       cover_filename=cover_filename,
-                                                       track_position=track_number,
-                                                       disk_number=disk_number,
-                                                       lyrics=lyrics)
+                                                        track_title=track_metadata['title'],
+                                                        artists=track_metadata['artists'],
+                                                        albums=track_metadata['albums'],
+                                                        genre=track_metadata['genre'],
+                                                        album_artists=track_metadata['album_artists'],
+                                                        year=track_metadata['year'],
+                                                        cover_filename=cover_filename,
+                                                        track_position=track_metadata['track_number'],
+                                                        disk_number=track_metadata['disk_number'],
+                                                        lyrics=track_metadata['lyrics'])
                             logger.debug(f'Метаданные трека [{track_name}] были обновлены.')
                             self.downloaded_tracks += 1
                         except AttributeError:
@@ -2388,6 +2435,65 @@ class YandexMusicDownloader:
                 else:
                     logger.debug(f'Трек [{track_name}] уже существует в базе [{self.history_database_path}].')
                 return True
+
+            def _get_track_metadata(self, track_data):
+                """
+                Получаем метаданные трека
+
+                :param track_data: текущий трек
+                :return: Словарь метаданных
+                """
+
+                album_info = track_data['track'].albums[0] if track_data['track'].albums else None
+                track_metadata = track_data['track'].meta_data
+
+                albums = track_data["albums"]
+                if not albums and track_metadata is not None:
+                    albums = track_metadata.album if track_metadata.album is not None else ""
+
+                genre = album_info.genre if album_info is not None else track_metadata.genre if track_metadata is not None else ""
+                track_number = album_info.track_position.index if album_info is not None else track_metadata.number if track_metadata is not None else 1
+                disk_number = album_info.track_position.volume if album_info is not None else track_metadata.volume if track_metadata is not None else 1
+                year = album_info.year if album_info is not None else track_metadata.year if track_metadata is not None else 0
+                album_artists = album_info.artists if album_info is not None else ""
+
+                genre = "" if genre is None else genre
+                track_number = 1 if track_number is None else track_number
+                disk_number = 1 if disk_number is None else disk_number
+                year = 0 if year is None else year
+                album_artists = track_data['artists'] if not album_artists else ', '.join(i['name'] for i in album_artists)
+
+                artist_id = ', '.join(str(i.id) for i in track_data['track'].artists)
+                album_id = ', '.join(str(i.id) for i in track_data['track'].albums)
+
+                lyrics = track_data['track'].get_supplement().lyrics
+                lyrics = track_metadata.lyricist if lyrics is None and track_metadata is not None else lyrics
+
+                release_data = album_info.release_date if album_info is not None else ""
+                is_explicit = True if track_data['track'].content_warning is not None else False
+                
+                try:
+                    is_popular = True if int(track_data['id']) in album_info.bests else False if album_info is not None else 0
+                except Exception:
+                    is_popular = 0
+
+                return {
+                    "id": track_data['id'],
+                    "artist_id": artist_id,
+                    "album_id": album_id,
+                    "title": track_data['title'],
+                    "artists": track_data['artists'],
+                    "albums": albums,
+                    "genre": genre,
+                    "track_number": track_number,
+                    "disk_number": disk_number,
+                    "year": year,
+                    "album_artists": album_artists,
+                    "lyrics": lyrics,
+                    "release_data": release_data,
+                    "is_explicit": is_explicit,
+                    "is_popular": is_popular
+                }
 
             def _get_track_name(self, track_data, need_strip=True):
                 """
@@ -2457,21 +2563,23 @@ class YandexMusicDownloader:
                               f"disk_number, year, release_data, bit_rate, codec, is_favorite, is_explicit, is_popular) " \
                               f"VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?);"
 
-                    album_info = track_data['track'].albums[0]
+                    track_metadata = self._get_track_metadata(track_data)
 
-                    track_id = int(track_data['id'])
-                    artist_id = ', '.join(str(i.id) for i in track_data['track'].artists)
-                    album_id = ', '.join(str(i.id) for i in track_data['track'].albums)
-                    track_name = track_data['title']
-                    artist_name = track_data['artists']
-                    album_name = track_data['albums']
-                    genre = album_info.genre if album_info is not None else ""
-                    track_number = album_info.track_position.index if album_info is not None else 0
-                    disk_number = album_info.track_position.volume if album_info is not None else 0
-                    year = album_info.year if album_info is not None else 0
-                    release_data = album_info.release_date if album_info is not None else ""
-                    is_explicit = True if track_data['track'].content_warning is not None else False
-                    is_popular = True if int(track_data['id']) in album_info.bests else False if album_info is not None else 0
+                    track_id = track_metadata['id']
+                    artist_id = track_metadata['artist_id']
+                    album_id = track_metadata['album_id']
+                    track_name = track_metadata['title']
+                    artist_name = track_metadata['artists']
+                    album_name = track_metadata['albums']
+                    
+                    genre = track_metadata['genre']
+                    track_number = track_metadata['track_number']
+                    disk_number = track_metadata['disk_number']
+                    year = track_metadata['year']
+
+                    release_data = track_metadata['release_data']
+                    is_explicit = track_metadata['is_explicit']
+                    is_popular = track_metadata['is_popular']
 
                     metadata = [track_id, artist_id, album_id, track_name, artist_name, album_name,
                                 genre, track_number, disk_number, year, release_data, bit_rate, codec,
@@ -2553,7 +2661,7 @@ class YandexMusicDownloader:
                 :return:
                 """
                 for track in self.favorite_tracks:
-                    if int(track_id) == int(track.id):
+                    if track_id == track.id:
                         return True
                 return False
 
@@ -2582,7 +2690,7 @@ class YandexMusicDownloader:
                     con = sqlite3.connect(self.history_database_path)
                     cursor = con.cursor()
                     request = f"UPDATE {_playlist_name} SET is_favorite = ? WHERE track_id == ?;"
-                    cursor.execute(request, [_is_favorite, int(track_data['id'])])
+                    cursor.execute(request, [_is_favorite, track_data['id']])
                     con.commit()
 
                     logger.debug(f'Трек [{_track_name}] был добавлен в любимые.')
@@ -2598,3 +2706,18 @@ class YandexMusicDownloader:
                     if con is not None:
                         con.close()
                 return return_value
+
+            def _create_cover(self, path, size=(300, 300)):
+                # Создайте новое изображение размером 300x300 пикселей и синим фоном
+                image = Image.new("RGB", (300, 300), config.Color.DEFAULT_TRACK_COVER1)
+
+                # Создайте объект ImageDraw для рисования на изображении
+                draw = ImageDraw.Draw(image)
+
+                # Нарисуйте красный квадрат (координаты левого верхнего угла и правого нижнего угла)
+                square_color = config.Color.DEFAULT_TRACK_COVER2
+                square_coords = [(100, 100), (200, 200)]  # Координаты квадрата
+                draw.rectangle(square_coords, fill=square_color)
+
+                # Сохраните изображение
+                image.save(path)

@@ -32,6 +32,11 @@ class Color:
     COMBO_DROPLIST_BG_DARK = '#404040'
     COMBO_DROPLIST_BG_LIGHT = '#F8F8F8'
 
+    DEFAULT_TRACK_COVER1 = '#1e1e2e'
+    DEFAULT_TRACK_COVER2 = '#de0052'
+    DEFAULT_PLAYLIST_COVER = '#496c88'
+    FAVORITE_PLAYLIST_COVER = '#896c4a'
+
 
 class Actions:
     actions_list = ['d', 'u', 'adb', 'uf']
