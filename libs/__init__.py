@@ -14,6 +14,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
-__version__ = '2.2.2'
+__version__ = '2.2.3'
 __data__ = '03/2023'
 __github__ = 'https://github.com/Laynholt/ymd2'

@@ -1863,6 +1863,7 @@ class YandexMusicDownloader:
                 nonlocal is_finishing_downloading
                 is_finishing_downloading = True
 
+                download_info['end'].set(True)
                 messagebox.showerror('Ошибка', 'Не удалось связаться с сервисом Яндекс Музыка!\n\n'
                                                'Проверьте ваше подключение к Интернету или попробуйте позже.')
 
