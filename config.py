@@ -71,20 +71,32 @@ paths = {
         'stuff': f'{paths["stuff"]}',
         'download': 'download',
         'playlists_covers': f'{paths["stuff"]}/playlists_covers',
-        'theme': f'{paths["stuff"]}/themes/'
-    },
-
+        'theme': f'{paths["stuff"]}/themes/',
+        'icons': f'{paths["stuff"]}/icons/'
+    }
+}
+paths.update({
     'files': {
-        'history': f'{paths["stuff"]}/history.db',
-        'default_playlist_cover': f'{paths["stuff"]}/default_playlist_cover.jpg',
-        'favorite_playlist_cover': f'{paths["stuff"]}/favorite_playlist_cover.jpg',
-        'icon': f'{paths["stuff"]}/icon1.ico',
-        'log': f'{paths["stuff"]}/logging.log',
-        'config': f'{paths["stuff"]}/config.ini',
+        'history': f'{paths["dirs"]["stuff"]}/history.db',
+        'default_playlist_cover': f'{paths["dirs"]["icons"]}/default_playlist_cover.png',
+        'favorite_playlist_cover': f'{paths["dirs"]["icons"]}/favorite_playlist_cover.png',
+        'icon': {
+            'main': f'{paths["dirs"]["icons"]}/icon1.ico',
+            'info_l': f'{paths["dirs"]["icons"]}/info_64.ico',
+            'info_s': f'{paths["dirs"]["icons"]}/info_32.ico',
+            'warning_l': f'{paths["dirs"]["icons"]}/warn_64.ico',
+            'warning_s': f'{paths["dirs"]["icons"]}/warn_32.ico',
+            'error_l': f'{paths["dirs"]["icons"]}/err_64.ico',
+            'error_s': f'{paths["dirs"]["icons"]}/err_32.ico',
+            'success_l': f'{paths["dirs"]["icons"]}/suc_64.ico',
+            'success_s': f'{paths["dirs"]["icons"]}/suc_32.ico',
+            },
+        'log': f'{paths["dirs"]["stuff"]}/logging.log',
+        'config': f'{paths["dirs"]["stuff"]}/config.ini',
         'theme': {
             'dark': 'forest-dark',
             'light': 'forest-light'
         }
     }
-}
+})
 

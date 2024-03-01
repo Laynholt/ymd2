@@ -45,3 +45,12 @@ def strip_bad_symbols(text: str, soft_mode: bool = False) -> str:
     else:
         result = re.sub(r"[^\w_.)( -]", "", text)
     return result
+
+def get_center_coord_for_window(window, width, height):
+    # Вычисляем положение окна по центру экрана
+    screen_width = window.winfo_screenwidth()
+    screen_height = window.winfo_screenheight()
+    x = (screen_width - width) // 2
+    y = (screen_height - height) // 2
+
+    return x, y

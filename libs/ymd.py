@@ -15,7 +15,7 @@ limitations under the License.
 """
 
 import tkinter as tk
-from tkinter import ttk, messagebox, filedialog
+from tkinter import ttk, filedialog
 
 import os
 import json
@@ -77,8 +77,6 @@ class YandexMusicDownloader:
         try:
             if self._run_configuration_window():
                 self._run_main_window()
-        except NetworkError:
-            messagebox.showerror('Ошибка', 'Не удалось подключиться к Yandex!\n\nПопробуйте позже.')
         except RuntimeError:
             pass
 
@@ -89,14 +87,25 @@ class YandexMusicDownloader:
         :return:
         """
         # Начальная инициализация основных полей
+        def _default_init():
+            self.token = ''
+            self._history_database_path = config.paths['files']['history']
+            self._download_folder_path = config.paths['dirs']['download']
+            self._is_rewritable = config.IS_REWRITABLE
+
+            self._style_is_dark_theme = True
+            self._style_is_default_theme = False
+            
+            nonlocal _is_logger_mode_debug 
+            _is_logger_mode_debug = config.LOGGER_DEBUG_MODE
+
+        
         config_filename = config.paths['files']['config']
-        self.token = ''
-        self._history_database_path = config.paths['files']['history']
-        self._download_folder_path = config.paths['dirs']['download']
-        self._is_rewritable = config.IS_REWRITABLE
         self._loop = None
 
         _is_logger_mode_debug = config.LOGGER_DEBUG_MODE
+
+        _default_init()
 
         # Если существует файл конфигурации, то загружаемся с него
         if os.path.exists(config_filename) and os.path.isfile(config_filename):
@@ -106,12 +115,25 @@ class YandexMusicDownloader:
                         data = json.load(config_file)
                         self.token = data['token']
                         logger.debug(f'Из файла [{config_filename}] был получен токен: [{self.token}]')
+                        
                         self._history_database_path = data['history']
                         logger.debug(
                             f'Из файла [{config_filename}] был получен путь в базе данных: [{self._history_database_path}]')
+                        
+                        if not os.path.exists(self._history_database_path) or not os.path.isfile(self._history_database_path):
+                            logger.error(f"Ошибка, файла [{self._history_database_path}] не существует! " 
+                                         f"Путь установлен на стандартный [{config.paths['files']['history']}].")
+                            self._history_database_path = config.paths['files']['history']
+
                         self._download_folder_path = data['download']
                         logger.debug(
                             f'Из файла [{config_filename}] был получен путь к папке загрузок: [{self._download_folder_path}]')
+                        
+                        if not os.path.exists(self._download_folder_path) or os.path.isfile(self._download_folder_path):
+                            logger.error(f"Ошибка, папки [{self._download_folder_path}] не существует! " 
+                                         f"Путь установлен на стандартный [{config.paths['dirs']['download']}].")
+                            self._download_folder_path = config.paths['dirs']['download']
+
                         self._style_is_default_theme = data['default_theme']
                         logger.debug(f'Значение стандартной темы установлено в: [{self._style_is_default_theme}]')
                         self._style_is_dark_theme = data['dark_theme']
@@ -121,16 +143,20 @@ class YandexMusicDownloader:
 
                     except json.decoder.JSONDecodeError:
                         logger.error(f'Ошибка при разборе файла [{config_filename}]!')
+                        _default_init()
                     except KeyError:
                         logger.error(f'Ошибка при попытке извлечь данные. '
                                      f'Видимо файл [{config_filename}] был ошибочно записан, либо некорректно изменён!')
+                        _default_init()
             except IOError:
                 logger.error(f'Не удалось открыть файл [{config_filename}] для чтения!')
+                _default_init()
 
         _window_configuration = tk.Tk()
-        _window_configuration.geometry('625x340')
+        _x, _y = utils.get_center_coord_for_window(_window_configuration, 625, 340)
+        _window_configuration.geometry(f'625x340+{_x}+{_y}')
         try:
-            _window_configuration.iconbitmap(config.paths["files"]["icon"])
+            _window_configuration.iconbitmap(config.paths["files"]["icon"]["main"])
         except tk.TclError:
             pass
 
@@ -214,6 +240,8 @@ class YandexMusicDownloader:
         _label_login_password = ttk.Label(_labelframe_required, text='Либо авторизуйтесь через логин и пароль:')
         _label_login_password.grid(column=0, row=2, columnspan=2, padx=5, pady=5)
 
+        _messagebox = widgets.CustomMessageBox(_window_configuration)
+
         # Обработчик гиперссылки
         def _callback(url):
             webbrowser.open_new(url)
@@ -227,7 +255,7 @@ class YandexMusicDownloader:
             _window_auth = tk.Toplevel(_window_configuration)
             _window_auth.geometry('600x310')
             try:
-                _window_auth.iconbitmap(config.paths["files"]["icon"])
+                _window_auth.iconbitmap(config.paths["files"]["icon"]["main"])
             except tk.TclError:
                 pass
 
@@ -285,11 +313,11 @@ class YandexMusicDownloader:
 
                 login = _entry_login.get()
                 if login == '':
-                    messagebox.showinfo('Инфо', 'Перед продолжением введите Логин!')
+                    _messagebox.show_error('Перед продолжением введите Логин!')
                     return
                 password = _entry_password.get()
                 if password == '':
-                    messagebox.showinfo('Инфо', 'Перед продолжением введите Пароль!')
+                    _messagebox.show_error('Перед продолжением введите Пароль!')
                     return
 
                 ys = session.YandexSession(login=login, password=password)
@@ -299,18 +327,19 @@ class YandexMusicDownloader:
                 # Закрытие лупа перенесено в завершение окна Конфигурации
 
                 if response.get_error() is not None:
-                    messagebox.showerror('Ошибка', f'{response.get_error()}')
+                    _messagebox.show_error(f'{response.get_error()}')
                     logger.error(f'{response.get_error().replace(chr(10), "")}')
                     return
 
                 if response.get_token() is None:
-                    messagebox.showerror('Ошибка', 'Не удалось получить токен!')
+                    _messagebox.show_error('Не удалось получить токен!')
                     logger.error('Не удалось получить токен!')
                     return
 
                 self.token = response.get_token()
                 _entry_enter_token.delete(0, tk.END)
                 _entry_enter_token.insert(0, self.token)
+                _messagebox.show_success(f'Авторизация прошла успешно!')
                 logger.debug(f'Авторизация прошла успешно! Получен токен для аккаунта [{self.token}].')
 
                 _window_auth.destroy()
@@ -381,8 +410,16 @@ class YandexMusicDownloader:
 
         # Экшен, для перехода на главное окно приложения
         def _continue_action():
+            # Если мы вводили логин и пароль, то у нас весит сессия, которую нужно закрыть, иначе будет зомби поток,
+            # который помешает завершить корректно программу в дальнейшем
+            if self._loop is not None:
+                # Слип для закрытия соединения
+                # https://docs.aiohttp.org/en/stable/client_advanced.html#graceful-shutdown
+                self._loop.run_until_complete(asyncio.sleep(1))
+                self._loop.close()
+
             if _entry_enter_token.get() == '':
-                messagebox.showinfo('Инфо', 'Перед продолжением необходимо ввести токен!')
+                _messagebox.show_info('Перед продолжением необходимо ввести токен!')
                 return
             self.token = _entry_enter_token.get()
             self._is_rewritable = _check_is_rewritable.get()
@@ -415,15 +452,6 @@ class YandexMusicDownloader:
         _button_continue.grid(column=4, row=5, padx=10, pady=5, sticky=tk.E)
 
         _window_configuration.mainloop()
-
-        # Если мы вводили логин и пароль, то у нас весит сессия, которую нужно закрыть, иначе будет зомби поток,
-        # который помешает завершить корректно программу в дальнейшем
-        if self._loop is not None:
-            # Слип для закрытия соединения
-            # https://docs.aiohttp.org/en/stable/client_advanced.html#graceful-shutdown
-            self._loop.run_until_complete(asyncio.sleep(1))
-            self._loop.close()
-
         return is_continue
 
     def _load_theme_styles(self, window):
@@ -498,9 +526,10 @@ class YandexMusicDownloader:
         :return:
         """
         self._window_main = tk.Tk()
-        self._window_main.geometry('610x220')
+        _x, _y = utils.get_center_coord_for_window(self._window_main, 610, 220)
+        self._window_main.geometry(f'610x220+{_x}+{_y}')
         try:
-            self._window_main.iconbitmap(config.paths["files"]["icon"])
+            self._window_main.iconbitmap(config.paths["files"]["icon"]["main"])
         except tk.TclError:
             pass
 
@@ -508,6 +537,8 @@ class YandexMusicDownloader:
         self._window_main.resizable(width=False, height=False)
 
         self._load_theme_styles(self._window_main)
+
+        self._messagebox = widgets.CustomMessageBox(self._window_main)
 
         # Создаем окно загрузок
         self._window_download = tk.Toplevel(self._window_main)
@@ -531,7 +562,7 @@ class YandexMusicDownloader:
             about_window.geometry('250x90')
             about_window.title('О программе')
             try:
-                about_window.iconbitmap(config.paths["files"]["icon"])
+                about_window.iconbitmap(config.paths["files"]["icon"]["main"])
             except tk.TclError:
                 pass
             about_window.resizable(width=False, height=False)
@@ -636,12 +667,40 @@ class YandexMusicDownloader:
                                                  var=self._check_state_history)
         self._checkbox_history.grid(column=0, row=3, columnspan=3, sticky=tk.W, padx=22)
 
-        def _download():
-            _thread = threading.Thread(target=self._simple_downloading, daemon=True)
+        def _download(_full=False):
+            if _full:
+                _thread = threading.Thread(
+                    target=self._full_downloading,
+                    args=(
+                        config.Actions.actions_list[0],
+                        False,
+                        self._is_rewritable,
+                        self._check_state_history.get(),
+                    ),
+                    daemon=True)
+            else:
+                _thread = threading.Thread(target=self._simple_downloading, daemon=True)
+            self._messagebox.show_info('Подождите, идёт подготовка к загрузке.')
             _thread.start()
 
         self._button_download = ttk.Button(self._frame_main, width=15, text='Скачать', command=_download)
         self._button_download.grid(column=3, row=3)
+
+        self._downloading_window_is_displayed = tk.BooleanVar(value=False)
+
+        def _show_downloading_window():
+            if self._downloading_window_is_displayed.get() is False:
+                self._window_download.deiconify()
+            else:
+                self._window_download.withdraw()
+            self._downloading_window_is_displayed.set(not self._downloading_window_is_displayed.get())
+
+        self._window_main.bind("<Alt-d>", lambda x: _download(_full=True))
+        self._window_main.bind("<Control-e>", lambda x: self._extend_downloading())
+        self._window_main.bind("<Control-d>", lambda x: _show_downloading_window())
+        self._window_download.bind("<Control-d>", lambda x: self._window_download.withdraw())
+
+        # self._window_main.bind("<Control-z>", lambda x: self._messagebox.show_success('successOKsuccessOKsuccessOKsuccessOKsuccessOKsuccessOKsuccessOKsuccessOKsuccessOKsuccessOKsuccessOKsuccessOKsuccessOKsuccessOKsuccessOKsuccessOK123'))
 
         # Изменяем правило, при закрытие окна
         def _prepare_to_close_main_program():
@@ -663,6 +722,7 @@ class YandexMusicDownloader:
             logger.debug('Все потоки завершены. Завершение основного потока...')
             self._window_main.destroy()
 
+        self._window_main.focus_set()
         self._window_main.protocol("WM_DELETE_WINDOW", _prepare_to_close_main_program)
         self._window_main.mainloop()
 
@@ -685,7 +745,8 @@ class YandexMusicDownloader:
                                                _playlists_covers_folder_name=self._playlists_covers_folder_name,
                                                _is_rewritable=self._is_rewritable,
                                                _event=self._window_main,
-                                               _create_download_instance=self._create_new_download_instance)
+                                               _create_download_instance=self._create_new_download_instance,
+                                               _messagebox = self._messagebox)
         # Загружаем все пользовательские данные
         thread = threading.Thread(target=self._wrapper.init, daemon=True)
         thread.start()
@@ -851,11 +912,11 @@ class YandexMusicDownloader:
                 conn.commit()
                 logger.debug(f'Все изменения успешно сохранены.')
 
-                messagebox.showinfo("Инфо", "Параметры Базы данных успешно обновлены!", parent=self._window_main)
+                self._messagebox.show_info('Параметры Базы данных успешно обновлены!')
     
         except Exception as e:
             logger.error(f"Произошла ошибка при попытке изменить данные БД.")
-            messagebox.showerror("Ошибка", "Не удалось обновить параметры Базы данных!", parent=self._window_main)
+            self._messagebox.show_error('Не удалось обновить параметры Базы данных!')
 
     def _analyze_updated_playlist_info(self, *args):
         """
@@ -897,9 +958,12 @@ class YandexMusicDownloader:
 
         # Формируем датафрейм для дальнейшей отправки его в загрузчик
 
-        data_frame = {'d': {}, config.Actions.check_actions['id']: False,
-                      config.Actions.check_actions['rw']: self._is_rewritable,
-                      config.Actions.check_actions['hist']: self._check_state_history.get()}
+        data_frame = {
+            'd': {},
+            config.Actions.check_actions['id']: False,
+            config.Actions.check_actions['rw']: self._is_rewritable,
+            config.Actions.check_actions['hist']: self._check_state_history.get()
+        }    
 
         try:
             playlist = self._wrapper.playlists[self._combo_playlists.current()]
@@ -914,9 +978,48 @@ class YandexMusicDownloader:
             self._window_main.event_generate(f'<<{self.Events.CHECK_BASKET_QUEUE}>>')
 
         except (NetworkError, YandexMusicError):
-            messagebox.showerror('Ошибка', 'Не удалось связаться с сервисом Яндекс Музыка!\n\n'
-                                           'Проверьте ваше подключение к Интернету или попробуйте позже.',
-                                 parent=self._window_child_extend_downloading)
+            self._messagebox.show_error('Не удалось связаться с сервисом Яндекс Музыка!\n\n'
+                                        'Проверьте ваше подключение к Интернету или попробуйте позже.')
+
+    def _full_downloading(self, action_type, is_id, is_rewritable, is_history, _is_inner=False):
+        """
+        Загрузка всех плейлистов
+
+        :param action_type: Тип действия (загрузка, обновление...)
+        :param is_id: Добавлять айди трека к названию
+        :param is_rewritable: Перезаписывать треки
+        :param is_history: Использовать базу данных при загрузке
+        :param _is_inner: Это был внутренний вызов (из extend_downloadting)
+        :return:
+        """
+        # Формируем датафрейм для дальнейшей отправки его в загрузчик
+
+        data_frame = {
+            action_type: {},
+            config.Actions.check_actions['id']: is_id,
+            config.Actions.check_actions['rw']: is_rewritable,
+            config.Actions.check_actions['hist']: is_history
+        }
+
+        try:
+            for _playlist in self._wrapper.playlists:
+                if _playlist.kind not in self._wrapper.marked_up_data:
+                    # Если данных о текущем плейлисте нет, то скачиваем их
+                    self._wrapper.data_markup(_playlist.kind)
+
+            # Формируем датафрейм
+            for playlist_kind, playlist_data in self._wrapper.marked_up_data.items():
+                data_frame[action_type][playlist_kind] = playlist_data
+
+            self._wrapper.basket_queue.put(data_frame)
+            self._window_main.event_generate(f'<<{self.Events.CHECK_BASKET_QUEUE}>>')
+
+        except (NetworkError, YandexMusicError):
+            if _is_inner:
+                raise NetworkError
+            else:
+                self._messagebox.show_error('Не удалось связаться с сервисом Яндекс Музыка!\n\n'
+                                           'Проверьте ваше подключение к Интернету или попробуйте позже.')
 
     def _extend_downloading(self):
         """
@@ -933,7 +1036,7 @@ class YandexMusicDownloader:
         self._window_child_extend_downloading.minsize(950, 700)
         self._window_child_extend_downloading.title('YMD - Окно Расширенной загрузки')
         try:
-            self._window_child_extend_downloading.iconbitmap(config.paths["files"]["icon"])
+            self._window_child_extend_downloading.iconbitmap(config.paths["files"]["icon"]["main"])
         except tk.TclError:
             pass
 
@@ -1066,8 +1169,7 @@ class YandexMusicDownloader:
 
             # Данные текущего плейлиста сейчас заполняются, выходим
             if playlist_index in self._wrapper.playlists_are_marking_up:
-                messagebox.showinfo('Инфо', 'Подождите, данные текущего плейлиста сейчас заполняются.',
-                                    parent=self._window_child_extend_downloading)
+                self._messagebox.show_info('Подождите, данные текущего плейлиста сейчас заполняются.')
                 return
 
             _basket = []
@@ -1108,8 +1210,7 @@ class YandexMusicDownloader:
 
             # Данные текущего плейлиста сейчас заполняются, выходим
             if playlist_index in self._wrapper.playlists_are_marking_up:
-                messagebox.showinfo('Инфо', 'Подождите, данные текущего плейлиста сейчас заполняются.',
-                                    parent=self._window_child_extend_downloading)
+                self._messagebox.show_info('Подождите, данные текущего плейлиста сейчас заполняются.')
                 return
 
             selected_items = [[''] + list(item) for item in _tree_view_tab1.tv_get_multi_selected(option='values')]
@@ -1248,8 +1349,7 @@ class YandexMusicDownloader:
             current_action = config.Actions.actions_dict[_combobox_action_type.current()]
             if partial_mode:
                 if current_action not in basket:
-                    messagebox.showinfo('Инфо', 'Сначала добавьте нужные композиции в корзину!',
-                                        parent=self._window_child_extend_downloading)
+                    self._messagebox.show_info('Сначала добавьте нужные композиции в корзину!')
                     return
                 _thread_prepare = threading.Thread(target=_preparing_to_partial_download, daemon=True)
             else:
@@ -1262,6 +1362,7 @@ class YandexMusicDownloader:
 
             self._window_child_extend_downloading.protocol("WM_DELETE_WINDOW", _dont_close)
 
+            self._messagebox.show_info('Подождите, идёт подготовка к загрузке.')
             _thread_prepare.start()
 
         def _preparing_to_partial_download():
@@ -1294,31 +1395,24 @@ class YandexMusicDownloader:
             self._window_child_extend_downloading.protocol("WM_DELETE_WINDOW", _prepare_to_close)
 
         def _preparing_to_full_download():
-            # Формируем датафрейм для дальнейшей отправки его в загрузчик
-
-            action_type = config.Actions.actions_dict[_combobox_action_type.current()]
-            data_frame = {action_type: {}, config.Actions.check_actions['id']: self._check_add_ids.get(),
-                          config.Actions.check_actions['rw']: self._check_rewritable.get(),
-                          config.Actions.check_actions['hist']: self._check_state_history.get()}
 
             try:
-                for _playlist in self._wrapper.playlists:
-                    if _playlist.kind not in self._wrapper.marked_up_data:
-                        # Если данных о текущем плейлисте нет, то скачиваем их
-                        self._wrapper.data_markup(_playlist.kind)
-
-                # Формируем датафрейм
-                for playlist_kind, playlist_data in self._wrapper.marked_up_data.items():
-                    data_frame[action_type][playlist_kind] = playlist_data
-
+                action_type = config.Actions.actions_dict[_combobox_action_type.current()]
+            
                 # Отчищаем всё из корзины для текущего экшена
                 if action_type in basket:
                     del basket[action_type]
 
                 _load_playlist_data_to_tree_view2()
 
-                self._wrapper.basket_queue.put(data_frame)
-                self._window_main.event_generate(f'<<{self.Events.CHECK_BASKET_QUEUE}>>')
+                self._full_downloading(
+                    action_type,
+                    self._check_add_ids.get(),
+                    self._check_rewritable.get(),
+                    self._check_state_history.get(),
+                    _is_inner=True
+                )
+
                 self._window_child_extend_downloading.protocol("WM_DELETE_WINDOW", _prepare_to_close)
 
             except (NetworkError, YandexMusicError):
@@ -1327,9 +1421,8 @@ class YandexMusicDownloader:
                 _button_download_selected['state'] = 'normal'
                 _button_download_selected_allow_states[_combobox_action_type.current()] = True
 
-                messagebox.showerror('Ошибка', 'Не удалось связаться с сервисом Яндекс Музыка!\n\n'
-                                               'Проверьте ваше подключение к Интернету или попробуйте позже.',
-                                     parent=self._window_child_extend_downloading)
+                self._messagebox.show_error('Не удалось связаться с сервисом Яндекс Музыка!\n\n'
+                                               'Проверьте ваше подключение к Интернету или попробуйте позже.')
 
         def _notebook_changed_index(*args):
             if not _notebook.index(_notebook.select()):
@@ -1588,14 +1681,15 @@ class YandexMusicDownloader:
 
         widgets_variables = []
         for i in range(number_of_playlists):
-            download_widget = scrolling_frame.add_widget(action_type=action_type)
+            download_widget = scrolling_frame.add_widget(widget_type='dw', action_type=action_type)
             scrolling_frame.w_pack(download_widget, pady=5)
             widgets_variables.append(download_widget.get_variables())
 
-        self._notebook_download.add(frame, text=f'{config.Actions.actions_dict_text[action_type]}')
-        self._notebook_download.select(self._notebook_download.index('end') - 1)
+        tab_number = self._notebook_download.index('end')
+        self._notebook_download.add(frame, text=f'{config.Actions.actions_dict_text[action_type]} #{tab_number}')
+        self._notebook_download.select(tab_number)
 
-        return widgets_variables, download_info
+        return widgets_variables, download_info, tab_number
 
     class Events(StrEnum):
         PLAYLISTS_INFO_LOADED = auto()
@@ -1605,7 +1699,7 @@ class YandexMusicDownloader:
 
     class DownloaderWrapper:
         def __init__(self, token, _history_database_path, _download_folder_path, _playlists_covers_folder_name,
-                     _is_rewritable, _event, _create_download_instance):
+                     _is_rewritable, _event, _create_download_instance, _messagebox):
             self.token = token
             self._history_database_path = _history_database_path
             self._download_folder_path = _download_folder_path
@@ -1613,6 +1707,7 @@ class YandexMusicDownloader:
             self._is_rewritable = _is_rewritable
             self._event = _event
             self._create_download_instance = _create_download_instance
+            self._messagebox = _messagebox
 
             self._client = None
             self._liked_tracks = []
@@ -1648,7 +1743,7 @@ class YandexMusicDownloader:
                     logger.debug('Введённый токен валиден, авторизация прошла успешно!')
                 except UnauthorizedError:
                     logger.error('Введен невалидный токен!')
-                    messagebox.showerror('Ошибка', 'Введенный токен невалиден!')
+                    self._messagebox.show_error('Введенный токен невалиден!')
                     return
 
                 self.wrapper_state_is_ok = True
@@ -1676,7 +1771,7 @@ class YandexMusicDownloader:
                 thread = threading.Thread(target=self._download_all_playlists_covers, daemon=True)
                 thread.start()
             except NetworkError:
-                messagebox.showerror('Ошибка', 'Не удалось подключиться к Yandex!\n\nПопробуйте позже.')
+                self._messagebox.show_error('Не удалось подключиться к Yandex!\n\nПопробуйте позже.')
 
             self._event.bind(f'<<{YandexMusicDownloader.Events.CHECK_BASKET_QUEUE}>>', self._check_queue)
             self._event.bind(f'<<{YandexMusicDownloader.Events.MAIN_WINDOW_CLOSE}>>', self.break_download)
@@ -1699,7 +1794,7 @@ class YandexMusicDownloader:
                                 logger.debug(f'Обложка для плейлиста [{playlist_title}] была загружена в '
                                              f'[{self._playlists_covers_folder_name}/{playlist_title}.jpg].')
                             except NetworkError:
-                                messagebox.showerror('Ошибка', 'Не удалось подключиться к Yandex!\nПопробуйте позже.')
+                                self._messagebox.show_error('Не удалось подключиться к Yandex!\n\nПопробуйте позже.')
                                 return
                         else:
                             logger.debug(f'Обложка для плейлиста [{playlist_title}] уже существует в '
@@ -1864,11 +1959,11 @@ class YandexMusicDownloader:
                 is_finishing_downloading = True
 
                 download_info['end'].set(True)
-                messagebox.showerror('Ошибка', 'Не удалось связаться с сервисом Яндекс Музыка!\n\n'
+                self._messagebox.show_error('Не удалось связаться с сервисом Яндекс Музыка!\n\n'
                                                'Проверьте ваше подключение к Интернету или попробуйте позже.')
 
             # Добавляем в окно загрузки
-            widgets_variables, download_info = self._create_download_instance(
+            widgets_variables, download_info, tab_number = self._create_download_instance(
                 close_function=_break_download,
                 pause_function=_pause_download,
                 number_of_playlists=playlists_queue.qsize(),
@@ -1999,6 +2094,7 @@ class YandexMusicDownloader:
                 time.sleep(0.1)
 
             download_info['end'].set(True)
+            self._messagebox.show_success(f'Действие для вкладки #{tab_number} завершено!')
             logger.debug(f'Действие: [{config.Actions.actions_dict_text[action_type]}].'
                          f' Работа завершена - выхожу.')
             _break_download()

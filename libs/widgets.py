@@ -16,8 +16,14 @@ limitations under the License.
 
 import tkinter
 from tkinter import ttk
-from config import Color
+from config import Color, paths
 
+import enum
+from math import ceil
+from random import randint
+
+from PIL import Image, ImageTk
+import pyperclip
 
 class JustifiedCombobox(ttk.Combobox):
     """
@@ -536,3 +542,275 @@ class DownloadInfo(Widget):
                    'failed_download': self.failed_download_value,
                    'end': self.finish_downloading
         }
+
+
+class CustomMessageBoxSingle:
+    class MessageTypes(enum.Enum):
+            ANY = {
+                    'num': 0,
+                    'l': paths["files"]["icon"]["info_l"],
+                    's': paths["files"]["icon"]["main"]
+            }
+            INFO = {
+                    'num': 1,
+                    'l': paths["files"]["icon"]["info_l"],
+                    's': paths["files"]["icon"]["info_s"]
+            }
+            WARNING = {
+                    'num': 2,
+                    'l': paths["files"]["icon"]["warning_l"],
+                    's': paths["files"]["icon"]["warning_s"]
+            }
+            ERROR = {   
+                    'num': 3,
+                    'l': paths["files"]["icon"]["error_l"],
+                    's': paths["files"]["icon"]["error_s"]
+            }
+            SUCCESS = {
+                    'num': 4,
+                    'l': paths["files"]["icon"]["success_l"],
+                    's': paths["files"]["icon"]["success_s"]
+            }
+
+    def __init__(self, master):
+        self._master = master
+        self._title = tkinter.StringVar(value='')
+        self._message = tkinter.StringVar(value='')
+        self._info_queue = []
+
+        self._create_widgets()
+
+    def _create_widgets(self):
+        self._window = tkinter.Toplevel(self._master)
+        
+        self._default_window_width = 360
+        self._default_window_height = 150
+
+        self._window_width = 360
+        self._window_height = 150
+
+        # Вычисляем положение окна по центру экрана
+        screen_width = self._window.winfo_screenwidth()
+        screen_height = self._window.winfo_screenheight()
+        x = (screen_width - self._window_width) // 2
+        y = (screen_height - self._window_height) // 2
+
+        self._window.geometry(f'{self._window_width}x{self._window_height}+{x}+{y}')
+        
+        self._window.resizable(False, False)
+        self._window.title(self._title.get())
+        self._window.withdraw()
+
+        self._frame = ttk.Frame(self._window)
+        self._frame.pack(expand=1, fill=tkinter.BOTH)
+
+        self._frame1 = ttk.Frame(self._frame)
+        self._frame1.pack()
+
+        self._frame2 = ttk.Frame(self._frame)
+        self._frame2.pack()
+
+        self._label_image = ttk.Label(self._frame1)
+        self._label_image.pack(padx=10, pady=10, expand=1, fill=tkinter.Y, side=tkinter.LEFT)
+
+        self._max_textline_lenght = self._window_width-110
+
+        self._label_text = ttk.Label(self._frame1, textvariable=self._message, wraplength=self._max_textline_lenght, anchor='center', justify='center')
+        self._label_text.pack(padx=10, pady=10, expand=1, fill=tkinter.Y, side=tkinter.LEFT)
+
+        button_ok = ttk.Button(self._frame2, text="OK", command=self._close_window)
+        button_ok.pack(padx=10, pady=10, side=tkinter.LEFT)
+
+        button_copy = ttk.Button(self._frame2, text="Копировать", command=self._copy_text)
+        button_copy.pack(padx=10, pady=10, side=tkinter.LEFT)
+
+        self._title.trace_add('write', lambda x,y,z: self._window.title(self._title.get()))
+        self._message.trace_add('write', lambda x,y,z: self._update_label_size())
+
+        self._window.protocol("WM_DELETE_WINDOW", self._close_window)
+
+    def _close_window(self):
+        self._window.withdraw()
+        self._info_queue.pop(0)
+        self._show_next_info()
+
+    def _copy_text(self):
+        # Копируем текст в буфер обмена
+        pyperclip.copy(self._message.get())
+
+    def _update_label_size(self):
+        self._label_text.update_idletasks()
+        font_size = 11
+        text_lines = ceil(len(self._message.get()) / self._max_textline_lenght) + self._message.get().count('\n') - 1
+        new_window_height = self._default_window_height + font_size * text_lines
+        
+        if new_window_height > self._window_height:
+            self._window_height = new_window_height
+            self._window.geometry(f'{self._window_width}x{self._window_height}')
+
+    def _show_next_info(self):
+        if self._info_queue:
+            info = self._info_queue[0]
+            self._show(*info)
+
+    def _show(self, title, message, type):
+        self._window.focus_set()
+        self._title.set(title)
+        self._message.set(message)
+
+        try:
+            self._window.iconbitmap(type.value['s'])
+            
+            image = ImageTk.PhotoImage(Image.open(type.value['l']))
+            self._label_image.configure(image=image)
+            self._label_image.image = image
+
+            self._update_label_size()
+        except Exception:
+            pass
+
+        self._window.deiconify()
+
+    def _show_any(self, title, message, type):
+        self._info_queue.append((title, message, type))
+        if len(self._info_queue) == 1:
+            self._show_next_info()
+
+    def show(self, title, message):
+        self._show_any(title, message, self.MessageTypes.ANY)
+
+    def show_info(self, message, _title='Инфо'):
+        self._show_any(_title, message, self.MessageTypes.INFO)
+    
+    def show_warning(self, message, _title='Предупреждение'):
+        self._show_any(_title, message, self.MessageTypes.WARNING)
+    
+    def show_error(self, message, _title='Ошибка'):
+        self._show_any(_title, message, self.MessageTypes.ERROR)
+    
+    def show_success(self, message, _title='Успешно'):
+        self._show_any(_title, message, self.MessageTypes.SUCCESS)
+
+class CustomMessageBox:
+    class MessageTypes(enum.Enum):
+            ANY = {
+                    'num': 0,
+                    'l': paths["files"]["icon"]["info_l"],
+                    's': paths["files"]["icon"]["main"]
+            }
+            INFO = {
+                    'num': 1,
+                    'l': paths["files"]["icon"]["info_l"],
+                    's': paths["files"]["icon"]["info_s"]
+            }
+            WARNING = {
+                    'num': 2,
+                    'l': paths["files"]["icon"]["warning_l"],
+                    's': paths["files"]["icon"]["warning_s"]
+            }
+            ERROR = {   
+                    'num': 3,
+                    'l': paths["files"]["icon"]["error_l"],
+                    's': paths["files"]["icon"]["error_s"]
+            }
+            SUCCESS = {
+                    'num': 4,
+                    'l': paths["files"]["icon"]["success_l"],
+                    's': paths["files"]["icon"]["success_s"]
+            }
+
+    def __init__(self, master):
+        self._master = master
+        self._title = ''
+        self._message = ''
+
+    def _create_widgets(self):
+        self._window = tkinter.Toplevel(self._master)
+        
+        self._default_window_width = 360
+        self._default_window_height = 150
+
+        self._window_width = 360
+        self._window_height = 150
+
+        # Вычисляем положение окна по центру экрана
+        screen_width = self._window.winfo_screenwidth()
+        screen_height = self._window.winfo_screenheight()
+        x = (screen_width - self._window_width + randint(-50, 50)) // 2
+        y = (screen_height - self._window_height + randint(-50, 50)) // 2
+
+        self._window.geometry(f'{self._window_width}x{self._window_height}+{x}+{y}')
+        
+        self._window.resizable(False, False)
+        self._window.title(self._title)
+
+        self._frame = ttk.Frame(self._window)
+        self._frame.pack(expand=1, fill=tkinter.BOTH)
+
+        self._frame1 = ttk.Frame(self._frame)
+        self._frame1.pack()
+
+        self._frame2 = ttk.Frame(self._frame)
+        self._frame2.pack()
+
+        self._label_image = ttk.Label(self._frame1)
+        self._label_image.pack(padx=10, pady=10, expand=1, fill=tkinter.Y, side=tkinter.LEFT)
+
+        self._max_textline_lenght = self._window_width - 110
+
+        self._label_text = ttk.Label(self._frame1, text=self._message, wraplength=self._max_textline_lenght, anchor='center', justify='center')
+        self._label_text.pack(padx=10, pady=10, expand=1, fill=tkinter.Y, side=tkinter.LEFT)
+
+        button_ok = ttk.Button(self._frame2, text="OK", command=self._window.destroy)
+        button_ok.pack(padx=10, pady=10, side=tkinter.LEFT)
+
+        button_copy = ttk.Button(self._frame2, text="Копировать", command=self._copy_text)
+        button_copy.pack(padx=10, pady=10, side=tkinter.LEFT)
+
+        self._window.focus_set()
+
+    def _copy_text(self):
+        # Копируем текст в буфер обмена
+        pyperclip.copy(self._message)
+
+    def _update_label_size(self):
+        self._label_text.update_idletasks()
+        font_size = 11
+        text_lines = ceil(len(self._message) / self._max_textline_lenght) + self._message.count('\n') - 1
+        new_window_height = self._default_window_height + font_size * text_lines
+        
+        if new_window_height > self._window_height:
+            self._window_height = new_window_height
+            self._window.geometry(f'{self._window_width}x{self._window_height}')
+
+    def _show_any(self, title, message, type):
+        # try:
+            self._title = title
+            self._message = message
+
+            self._create_widgets()
+
+            self._window.iconbitmap(type.value['s'])
+            
+            image = ImageTk.PhotoImage(Image.open(type.value['l']))
+            self._label_image.configure(image=image)
+            self._label_image.image = image
+
+            self._update_label_size()
+        # except Exception:
+        #     pass
+
+    def show(self, title, message):
+        self._show_any(title, message, self.MessageTypes.ANY)
+
+    def show_info(self, message, _title='Инфо'):
+        self._show_any(_title, message, self.MessageTypes.INFO)
+    
+    def show_warning(self, message, _title='Предупреждение'):
+        self._show_any(_title, message, self.MessageTypes.WARNING)
+    
+    def show_error(self, message, _title='Ошибка'):
+        self._show_any(_title, message, self.MessageTypes.ERROR)
+    
+    def show_success(self, message, _title='Успешно'):
+        self._show_any(_title, message, self.MessageTypes.SUCCESS)
